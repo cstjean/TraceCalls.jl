@@ -20,6 +20,8 @@ end
 Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.return_value)
 @qstruct NotReturned()
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
+Base.getindex(tr::Trace, i::Int) = tr.called[i]
+Base.length(tr::Trace) = legnth(tr.called)
 
 top_level() = nothing
 
@@ -80,23 +82,33 @@ end
 
 ################################################################################
 
+const indentation = fill(10)
+
+const tab_def = """<style type="text/css">
+<!--
+.tab { margin-left: 40px; }
+-->
+</style>"""
+
 val_html(x) = string(x)
 
 Base.show(io::IO, ::MIME"text/html", tr::Trace) =
-    write(io, "<pre>"*trace_html(tr)*"</pre>")
+    write(io, tab_def * "<pre>"*trace_html(tr)*"</pre>")
 
 kwa_eql(kwarg::Pair) = "$(first(kwarg))=$(val_html(second(kwarg)))"
 kwargs_html(kwargs) = "; " * join(map(kwa_eql, kwargs), ", ")
 args_html(kwargs) = join(map(val_html, kwargs), ", ")
 kwargs_html(kwargs::Tuple{}) = ""
-sub_called_html(tr::Trace) =
-    (isempty(tr.called) ? "" :
-     "<blockquote>" * mapreduce(trace_html, *, "", tr.called) * "</blockquote>")
+sub_called_html(tr::Trace, indent) =
+     """<ul>""" * mapreduce(x->"<li>"*trace_html(x, indent+indentation)*"</li>", *, "", tr.called) * "</ul>"
+
+    # (isempty(tr.called) ? "" :
+    #  """<p style="margin-left: $(indent)px">""" * mapreduce(x->trace_html(x, indent+indentation), *, "", tr.called) * "</p>")
 call_html(::Any, tr::Trace) =
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
     "$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) = $(val_html(tr.return_value))<br>"
 
-trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
+trace_html(tr::Trace, indent=indentation) = call_html(tr.func, tr) * sub_called_html(tr, indent)
 
 
 end # module

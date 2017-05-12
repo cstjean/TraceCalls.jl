@@ -10,3 +10,13 @@
 that are preceded by `@traceable` can be traced with `@trace`
 
 ![Screenshot](Screenshot.png)
+
+The return value of `@trace` is a `Trace` structure, which is displayed nicely in Jupyter.
+To define a custom printing or analysis of the traces, use `dumps(trace)` to see how
+the data is stored.
+
+#### Performance
+
+The `@traceable` macro should have minimal impact on performance when `@trace` isn't
+used, but still, it'd be a bad idea to trace small performance-critical functions (that
+is called a million times per second, say)

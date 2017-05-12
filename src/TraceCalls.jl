@@ -1,3 +1,4 @@
+__precompile__()
 module TraceCalls
 
 using QuickTypes, MacroTools, Utils
@@ -29,7 +30,7 @@ const current_trace = fill(trace_data)
 
 macro traceable(fdef)
     func, args, kwargs, body_block, ret_type = parse_function_definition(fdef)
-    arg_name = function_argument_name
+    arg_name = Unrolled.function_argument_name
     all_args = map(arg_name, [args..., kwargs...])
     do_body, new_trace, prev_trace = gensym(), gensym(), gensym()
     esc(quote

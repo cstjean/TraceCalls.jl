@@ -8,7 +8,8 @@
 
 `TraceCalls` is a debugging tool for understanding program execution, similar to Common
 Lisp's `TRACE`. `@traceable` augments a function's code to store its calling information
-(but see [this note on performance](README.md#Performance)). Example:
+(but see [this note on performance](README.md#Performance)), then `@trace` returns
+the call-tree of all `@traceable` function that are called within its scope. For example:
 
 ![Screenshot](Screenshot.png)
 

@@ -3,9 +3,10 @@ module TraceCalls
 using QuickTypes, Utils
 using Unrolled
 
-export @traceable, @trace
+export @traceable, @trace, Trace
 
-@qmutable Trace(func, args, kwargs, called::Vector{Trace}, return_value)
+@qmutable Trace(func::Function, args::Tuple, kwargs::Tuple, called::Vector{Trace},
+                return_value)
 
 function Base.copy!(dest::Trace, src::Trace)
     dest.func = src.func
@@ -19,8 +20,10 @@ Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.return_v
 @qstruct NotReturned()
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 
+top_level() = nothing
+
 const is_tracing = fill(false)
-top_trace() = Trace(Main, (), (), [], nothing)
+top_trace() = Trace(top_level, (), (), [], nothing)
 const trace_data = top_trace()
 const current_trace = fill(trace_data)
 
@@ -37,7 +40,7 @@ macro traceable(fdef)
             if $TraceCalls.is_tracing[]
                 $prev_trace = $TraceCalls.current_trace[]
                 $new_trace =
-                 $TraceCalls.Trace($(Expr(:quote, func)), ($(map(arg_name, args)...),),
+                 $TraceCalls.Trace($func, ($(map(arg_name, args)...),),
                                    ($([:($(Expr(:quote, arg_name(kwa)))=>$(arg_name(kwa)))
                                        for kwa in kwargs]...),),
                                    [], $TraceCalls.NotReturned())
@@ -87,9 +90,9 @@ sub_called_html(tr::Trace) =
      "<blockquote>" * mapreduce(trace_html, *, "", tr.called) * "</blockquote>")
 call_html(::Any, tr::Trace) =
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    "$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) = $(val_html(tr.return_value))<br>" * sub_called_html(tr)
+    "$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) = $(val_html(tr.return_value))<br>"
 
-trace_html(tr::Trace) = call_html(tr.func, tr)
+trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
 
 
 end # module

@@ -1,7 +1,7 @@
 module TraceCalls
 
-using QuickTypes, Utils
-using Unrolled
+using QuickTypes, MacroTools, Utils
+import Unrolled
 
 export @traceable, @trace, Trace
 
@@ -29,7 +29,7 @@ const current_trace = fill(trace_data)
 
 macro traceable(fdef)
     func, args, kwargs, body_block, ret_type = parse_function_definition(fdef)
-    arg_name = Unrolled.function_argument_name
+    arg_name = function_argument_name
     all_args = map(arg_name, [args..., kwargs...])
     do_body, new_trace, prev_trace = gensym(), gensym(), gensym()
     esc(quote
@@ -64,8 +64,11 @@ end
 
 function tracing(fun::Function)
     copy!(trace_data, top_trace())
-    @dlet(is_tracing[]=true) do
+    try
+        is_tracing[] = true
         fun()
+    finally
+        is_tracing[] = false
     end
     return copy(trace_data)
 end

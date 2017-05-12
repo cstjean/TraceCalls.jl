@@ -6,8 +6,9 @@
 
 [![codecov.io](http://codecov.io/github/cstjean/TraceCalls.jl/coverage.svg?branch=master)](http://codecov.io/github/cstjean/TraceCalls.jl?branch=master)
 
-`TraceCalls` is a debugging tool for understanding program execution. `@traceable`
-augments a function's code to store that it was called when `@trace` is used. Example:
+`TraceCalls` is a debugging tool for understanding program execution, similar to Common
+Lisp's `TRACE`. `@traceable` augments a function's code to store its calling information
+(but see [this note on performance](README.md#Performance)). Example:
 
 ![Screenshot](Screenshot.png)
 
@@ -17,13 +18,15 @@ extra analysis.
 
 #### Custom printing
 
-There is often irrelevant information in the function calls, or large objects that
-should would be better printed concisely. This can be done either by overloading
-`Base.string`, or `TraceCalls.val_html` and `TraceCalls.call_html`:
+When working with large objects, traces can become unwieldy. Custom printing can be
+achieved by overloading either `Base.string`, or `TraceCalls.val_html` and
+`TraceCalls.call_html`:
 
 ![Screenshot_Custom](Screenshot_Custom.png)
 
 #### Performance
 
 The `@traceable` macro should have minimal impact on performance when `@trace` isn't
-used. Nevertheless, it would be a bad idea to trace small performance-critical functions.
+used, and no impact on type-stability. There should be no need to remove the `@traceable`
+annotations after debugging is done. Nevertheless, it would be a bad idea to trace small
+performance-critical functions.

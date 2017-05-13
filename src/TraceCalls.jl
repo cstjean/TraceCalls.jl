@@ -4,7 +4,7 @@ module TraceCalls
 using QuickTypes, MacroTools, Utils
 import Unrolled
 
-export @traceable, @trace, Trace
+export @traceable, @trace, Trace, filter_trace
 
 @qmutable Trace(func::Function, args::Tuple, kwargs::Tuple, called::Vector{Trace},
                 return_value)
@@ -110,5 +110,9 @@ call_html(::Any, tr::Trace) =
 
 trace_html(tr::Trace, indent=indentation) = call_html(tr.func, tr) * sub_called_html(tr, indent)
 
+filter_trace(f::Function, tr::Trace) =
+    Trace(tr.func, tr.args, tr.kwargs,
+          [filter_trace(f, sub_tr) for sub_tr in tr.called if f(sub_tr)],
+          tr.return_value)
 
 end # module

@@ -17,6 +17,12 @@ The return value of `@trace` is a `Trace` object, which is displayed nicely in
 HTML-capable environments. Try `dumps(trace)` to see how the data is stored, or to perform
 extra analysis.
 
+#### Filtering
+
+`filter_trace(func, trace::Trace)` applies `func` to every sub-trace, and eliminates
+those for which `func(sub_trace) === false`. For example, `filter_trace(x->!(x.func===h
+&& x.args[1] < 6), tr)`.
+
 #### Custom printing
 
 When working with large objects, traces can become unwieldy. Custom printing can be

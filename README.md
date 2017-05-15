@@ -34,6 +34,6 @@ achieved by overloading either `Base.string`, or `TraceCalls.val_html` and
 #### Performance
 
 The `@traceable` macro should have minimal impact on performance when `@trace` isn't
-used, and no impact on type-stability. There should be no need to remove the `@traceable`
-annotations after debugging is done. Nevertheless, it would be a bad idea to trace small
-performance-critical functions.
+used, and no impact on type-stability. Nevertheless, you can disable tracing entirely by
+typing `import TraceCalls; TraceCalls.active[] = false` _at the beginning of your Julia
+session_, or at the start of your script. This turns the `@traceable` macro into a no-op.

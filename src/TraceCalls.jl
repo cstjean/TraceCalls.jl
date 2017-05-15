@@ -6,6 +6,8 @@ import Unrolled
 
 export @traceable, @trace, Trace, filter_trace
 
+const active = fill(true)
+
 @qmutable Trace(func::Function, args::Tuple, kwargs::Tuple, called::Vector{Trace},
                 return_value)
 
@@ -31,6 +33,7 @@ const trace_data = top_trace()
 const current_trace = fill(trace_data)
 
 macro traceable(fdef)
+    if !active[] return esc(fdef) end
     func, args, kwargs, body_block, ret_type = parse_function_definition(fdef)
     arg_name = Unrolled.function_argument_name
     all_args = map(arg_name, [args..., kwargs...])

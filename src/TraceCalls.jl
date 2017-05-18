@@ -4,7 +4,7 @@ module TraceCalls
 using QuickTypes, MacroTools, Utils
 import Unrolled
 
-export @traceable, @trace, Trace, filter_trace
+export @traceable, @trace, Trace, filter_trace, limit_depth
 
 const active = fill(true)
 
@@ -116,6 +116,13 @@ trace_html(tr::Trace, indent=indentation) = call_html(tr.func, tr) * sub_called_
 filter_trace(f::Function, tr::Trace) =
     Trace(tr.func, tr.args, tr.kwargs,
           [filter_trace(f, sub_tr) for sub_tr in tr.called if f(sub_tr)],
+          tr.return_value)
+
+""" `limit_depth(::Trace, n::Int)` prunes the Trace-tree to a depth of `n` (convenient
+to first explore a trace at a high-level) """
+limit_depth(tr::Trace, n::Int) =
+    Trace(tr.func, tr.args, tr.kwargs,
+          [limit_depth(sub_tr, n-1) for sub_tr in tr.called if n > 0],
           tr.return_value)
 
 end # module

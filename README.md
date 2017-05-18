@@ -23,6 +23,11 @@ extra analysis.
 those for which `func(sub_trace) === false`. For example, `filter_trace(x->!(x.func===h
 && x.args[1] < 6), tr)`.
 
+##### Limiting depth
+
+`limit_depth(::Trace, n::Int)` prunes the Trace-tree to a depth of `n` (convenient
+to first explore a trace at a high-level).
+
 #### Custom printing
 
 When working with large objects, traces can become unwieldy. Custom printing can be

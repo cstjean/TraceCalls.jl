@@ -34,10 +34,15 @@ const current_trace = fill(trace_data)
 
 macro traceable(fdef)
     if !active[] return esc(fdef) end
+
     func, args, kwargs, body_block, ret_type = parse_function_definition(fdef)
-    arg_name = Unrolled.function_argument_name
+
+    arg_name(arg) = splitarg(arg)[1]
+    handle_missing_arg(arg) =  # handle name-free arguments like ::Int
+        arg_name(arg)===nothing ? :($(gensym())::$(splitarg(arg)[2])) : arg
+    args = map(handle_missing_arg, args)
     all_args = map(arg_name, [args..., kwargs...])
-    do_body, new_trace, prev_trace = gensym(), gensym(), gensym()
+    @gensym do_body new_trace prev_trace
     esc(quote
         @inline function $do_body($(all_args...))
             $body_block

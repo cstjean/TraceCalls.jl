@@ -31,7 +31,7 @@ to first explore a trace at a high-level).
 #### Custom printing
 
 When working with large objects, traces can become unwieldy. Custom printing can be
-achieved by overloading either `Base.string`, or `TraceCalls.val_html` and
+achieved by overloading either `Base.show`, or `TraceCalls.val_html` and
 `TraceCalls.call_html`:
 
 ![Screenshot_Custom](Screenshot_Custom.png)

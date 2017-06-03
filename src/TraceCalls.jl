@@ -2,7 +2,6 @@ __precompile__()
 module TraceCalls
 
 using QuickTypes, MacroTools, Utils
-import Unrolled
 
 export @traceable, @trace, Trace, filter_trace, limit_depth
 

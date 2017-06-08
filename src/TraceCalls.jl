@@ -31,17 +31,24 @@ top_trace() = Trace(top_level, (), (), [], nothing)
 const trace_data = top_trace()
 const current_trace = fill(trace_data)
 
+take_out_curly(s::Symbol) = s
+function take_out_curly(e::Expr)
+    @assert @capture(e, name_{args__}) "@traceable cannot handle $e"
+    return name
+end
+
 macro traceable(fdef)
     if !active[] return esc(fdef) end
 
     func, args, kwargs, body_block, ret_type = parse_function_definition(fdef)
+    fname = take_out_curly(func)
 
     arg_name(arg) = splitarg(arg)[1]
     handle_missing_arg(arg) =  # handle name-free arguments like ::Int
         arg_name(arg)===nothing ? :($(gensym())::$(splitarg(arg)[2])) : arg
     args = map(handle_missing_arg, args)
     all_args = map(arg_name, [args..., kwargs...])
-    @gensym do_body new_trace prev_trace
+    @gensym do_body new_trace prev_trace e res
     esc(quote
         @inline function $do_body($(all_args...))
             $body_block
@@ -50,7 +57,7 @@ macro traceable(fdef)
             if $TraceCalls.is_tracing[]
                 $prev_trace = $TraceCalls.current_trace[]
                 $new_trace =
-                 $TraceCalls.Trace($func, ($(map(arg_name, args)...),),
+                 $TraceCalls.Trace($fname, ($(map(arg_name, args)...),),
                                    ($([:($(Expr(:quote, arg_name(kwa)))=>$(arg_name(kwa)))
                                        for kwa in kwargs]...),),
                                    [], $TraceCalls.NotReturned())
@@ -58,11 +65,16 @@ macro traceable(fdef)
                 push!($prev_trace, $new_trace)
             end
             try
-                res = $do_body($(all_args...))
+                $res = $do_body($(all_args...))
                 if $TraceCalls.is_tracing[]
-                    $new_trace.return_value = res
+                    $new_trace.return_value = $res
                 end
-                return res
+                return $res
+            catch $e
+                if $TraceCalls.is_tracing[]
+                     $new_trace.return_value = $e
+                end
+                rethrow()
             finally
                 if $TraceCalls.is_tracing[]
                     $TraceCalls.current_trace[] = $prev_trace
@@ -77,6 +89,8 @@ function tracing(fun::Function)
     try
         is_tracing[] = true
         fun()
+    catch e
+        nothing
     finally
         is_tracing[] = false
     end

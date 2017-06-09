@@ -31,26 +31,26 @@ top_trace() = Trace(top_level, (), (), [], nothing)
 const trace_data = top_trace()
 const current_trace = fill(trace_data)
 
-take_out_curly(s::Symbol) = s
-function take_out_curly(e::Expr)
+split_curly(s::Symbol) = (s, ())
+function split_curly(e::Expr)
     @assert @capture(e, name_{args__}) "@traceable cannot handle $e"
-    return name
+    return name, args
 end
 
 macro traceable(fdef)
     if !active[] return esc(fdef) end
 
     func, args, kwargs, body_block, ret_type = parse_function_definition(fdef)
-    fname = take_out_curly(func)
+    fname, params = split_curly(func)
 
     arg_name(arg) = splitarg(arg)[1]
     handle_missing_arg(arg) =  # handle name-free arguments like ::Int
         arg_name(arg)===nothing ? :($(gensym())::$(splitarg(arg)[2])) : arg
     args = map(handle_missing_arg, args)
-    all_args = map(arg_name, [args..., kwargs...])
+    all_args = [args..., kwargs...]
     @gensym do_body new_trace prev_trace e res
     esc(quote
-        @inline function $do_body($(all_args...))
+        @inline function $do_body{$(params...)}($(all_args...))
             $body_block
         end
         function $func($(args...); $(kwargs...))::$ret_type
@@ -65,7 +65,7 @@ macro traceable(fdef)
                 push!($prev_trace, $new_trace)
             end
             try
-                $res = $do_body($(all_args...))
+                $res = $do_body($(map(arg_name, all_args)...))
                 if $TraceCalls.is_tracing[]
                     $new_trace.return_value = $res
                 end

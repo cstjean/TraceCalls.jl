@@ -1,14 +1,19 @@
 __precompile__()
 module TraceCalls
 
-using QuickTypes, MacroTools, Utils
+using MacroTools, Utils
 
 export @traceable, @trace, Trace, filter_trace, limit_depth
 
 const active = fill(true)
 
-@qmutable Trace(func::Function, args::Tuple, kwargs::Tuple, called::Vector{Trace},
-                return_value)
+mutable struct Trace
+    func::Function
+    args::Tuple
+    kwargs::Tuple
+    called::Vector{Trace}
+    return_value
+end
 
 function Base.copy!(dest::Trace, src::Trace)
     dest.func = src.func
@@ -19,10 +24,13 @@ function Base.copy!(dest::Trace, src::Trace)
 end
 
 Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.return_value)
-@qstruct NotReturned()
+struct NotReturned end
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int) = tr.called[i]
-Base.length(tr::Trace) = legnth(tr.called)
+Base.length(tr::Trace) = length(tr.called)
+Base.start(tr::Trace) = 1
+Base.next(tr::Trace, i::Int) = (tr[i], i+1)
+Base.done(tr::Trace, i::Int) = i == length(tr)+1
 function (tr::Trace)()
     return tr.func(tr.args...; tr.kwargs...)
 end

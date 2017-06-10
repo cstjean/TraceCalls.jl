@@ -23,12 +23,15 @@ Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.return_v
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int) = tr.called[i]
 Base.length(tr::Trace) = legnth(tr.called)
+function (tr::Trace)()
+    return tr.func(tr.args...; tr.kwargs...)
+end
 
-top_level() = nothing
+top_level_dummy() = error("top_level_dummy is not callable")
 
 const is_tracing = fill(false)
-top_trace() = Trace(top_level, (), (), [], nothing)
-const trace_data = top_trace()
+top_trace(fun) = Trace(fun, (), (), [], nothing)
+const trace_data = top_trace(top_level_dummy)
 const current_trace = fill(trace_data)
 
 split_curly(s::Symbol) = (s, ())
@@ -85,7 +88,7 @@ macro traceable(fdef)
 end
 
 function tracing(fun::Function)
-    copy!(trace_data, top_trace())
+    copy!(trace_data, top_trace(fun))
     try
         is_tracing[] = true
         fun()

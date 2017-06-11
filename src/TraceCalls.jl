@@ -3,7 +3,7 @@ module TraceCalls
 
 using MacroTools, Utils
 
-export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace
+export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace, FontColor, collect_trace
 
 const active = fill(true)
 
@@ -128,9 +128,18 @@ const tab_def = """<style type="text/css">
 -->
 </style>"""
 
-return_val_html(x) = """<b><font color="green">""" * val_html(x) * "</font></b>"
-return_val_html(x::Exception) = """<font color="red">""" * val_html(x) * "</font>"
+struct FontColor
+    color
+    content
+end
+struct Bold
+    content
+end
+return_val_html(x) =  val_html(Bold(FontColor("green", x)))
+return_val_html(x::Exception) = val_html(FontColor("red", x))
 val_html(x) = string(x)
+val_html(x::FontColor) = """<font color=$(x.color)>""" * val_html(x.content) * """</font>"""
+val_html(x::Bold) = "<b>" * val_html(x.content) * "</b>"
 
 function Base.show(io::IO, ::MIME"text/html", tr::Trace)
     write(io, call_html(tr.func, tr))
@@ -161,11 +170,30 @@ filter_trace(f::Function, tr::Trace) =
           [filter_trace(f, sub_tr) for sub_tr in tr.called if f(sub_tr)],
           tr.return_value)
 
+""" `collect_trace(tr::Trace)` returns a vector of all `Trace` objects within `tr`. """
+collect_trace(tr::Trace) = Trace[tr; mapreduce(collect_trace, vcat, [], tr)]
+
 """ `limit_depth(::Trace, n::Int)` prunes the Trace-tree to a depth of `n` (convenient
 to first explore a trace at a high-level) """
 limit_depth(tr::Trace, n::Int) =
     Trace(tr.func, tr.args, tr.kwargs,
           [limit_depth(sub_tr, n-1) for sub_tr in tr.called if n > 0],
           tr.return_value)
+
+function is_inferred(tr::Trace)
+    try
+        call_mac(:@inferred, tr)
+        return true
+    catch e
+        if e isa ErrorException && "does not match inferred return type" in e.msg
+            return false
+        end
+    end
+end
+
+redgreen(tr::Trace) =
+    map_trace(FontColor(sub->sub.return_value ? "green" : "red", sub.return_value), tr)
+
+
 
 end # module

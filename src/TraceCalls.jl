@@ -107,9 +107,9 @@ function tracing(fun::Function)
     copy!(trace_data, top_trace(fun))
     try
         is_tracing[] = true
-        fun()
+        trace_data.return_value = fun()
     catch e
-        nothing
+        trace_data.return_value = e
     finally
         is_tracing[] = false
     end
@@ -128,6 +128,8 @@ const tab_def = """<style type="text/css">
 -->
 </style>"""
 
+return_val_html(x) = """<b><font color="green">""" * val_html(x) * "</font></b>"
+return_val_html(x::Exception) = """<font color="red">""" * val_html(x) * "</font>"
 val_html(x) = string(x)
 
 function Base.show(io::IO, ::MIME"text/html", tr::Trace)
@@ -150,7 +152,7 @@ sub_called_html(tr::Trace) =
 
 call_html(::Any, tr::Trace) =
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    "<pre>$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) = $(val_html(tr.return_value))</pre>"
+    "<pre>$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) = $(return_val_html(tr.return_value))</pre>"
 
 trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
 

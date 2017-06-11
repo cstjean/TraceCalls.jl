@@ -122,8 +122,6 @@ end
 
 ################################################################################
 
-const indentation = fill(10)
-
 const tab_def = """<style type="text/css">
 <!--
 .tab { margin-left: 40px; }
@@ -132,23 +130,29 @@ const tab_def = """<style type="text/css">
 
 val_html(x) = string(x)
 
-Base.show(io::IO, ::MIME"text/html", tr::Trace) =
-    write(io, tab_def * "<pre>"*trace_html(tr)*"</pre>")
+function Base.show(io::IO, ::MIME"text/html", tr::Trace)
+    write(io, call_html(tr.func, tr))
+    write(io, """<ul>""")
+    for called in tr.called
+        write(io, "<li>")
+        show(io, MIME"text/html"(), called)
+        write(io, "</li>")
+    end
+    write(io, "</ul>")
+end
 
 kwa_eql(kwarg::Pair) = "$(first(kwarg))=$(val_html(second(kwarg)))"
 kwargs_html(kwargs) = "; " * join(map(kwa_eql, kwargs), ", ")
 args_html(kwargs) = join(map(val_html, kwargs), ", ")
 kwargs_html(kwargs::Tuple{}) = ""
-sub_called_html(tr::Trace, indent) =
-     """<ul>""" * mapreduce(x->"<li>"*trace_html(x, indent+indentation)*"</li>", *, "", tr.called) * "</ul>"
+sub_called_html(tr::Trace) =
+     """<ul>""" * mapreduce(x->"<li>"*trace_html(x)*"</li>", *, "", tr.called) * "</ul>"
 
-    # (isempty(tr.called) ? "" :
-    #  """<p style="margin-left: $(indent)px">""" * mapreduce(x->trace_html(x, indent+indentation), *, "", tr.called) * "</p>")
 call_html(::Any, tr::Trace) =
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    "$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) = $(val_html(tr.return_value))<br>"
+    "<pre>$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) = $(val_html(tr.return_value))</pre>"
 
-trace_html(tr::Trace, indent=indentation) = call_html(tr.func, tr) * sub_called_html(tr, indent)
+trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
 
 filter_trace(f::Function, tr::Trace) =
     Trace(tr.func, tr.args, tr.kwargs,

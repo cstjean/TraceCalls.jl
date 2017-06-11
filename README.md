@@ -42,3 +42,8 @@ The `@traceable` macro should have minimal impact on performance when `@trace` i
 used, and no impact on type-stability. Nevertheless, you can disable tracing entirely by
 typing `import TraceCalls; TraceCalls.active[] = false` _at the beginning of your Julia
 session_, or at the start of your script. This disables the `@traceable` macro entirely.
+
+TODO:
+- custom function printing via TraceCalls.call_html
+- map_trace
+- map_trace(macro, ...)

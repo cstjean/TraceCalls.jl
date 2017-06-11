@@ -20,8 +20,8 @@ extra analysis.
 #### Filtering
 
 `filter_trace(func, trace::Trace)` applies `func` to every sub-trace, and eliminates
-those for which `func(sub_trace) === false`. For example, `filter_trace(x->!(x.func===h
-&& x.args[1] < 6), tr)`.
+those for which `func(sub_trace) === false`. For example, `filter_trace(x->x.func===h
+&& x.args[1] < 6, tr)` keeps only calls to `h` where the first argument is less than 6.
 
 ##### Limiting depth
 
@@ -41,4 +41,4 @@ achieved by overloading either `Base.show`, or `TraceCalls.val_html` and
 The `@traceable` macro should have minimal impact on performance when `@trace` isn't
 used, and no impact on type-stability. Nevertheless, you can disable tracing entirely by
 typing `import TraceCalls; TraceCalls.active[] = false` _at the beginning of your Julia
-session_, or at the start of your script. This turns the `@traceable` macro into a no-op.
+session_, or at the start of your script. This disables the `@traceable` macro entirely.

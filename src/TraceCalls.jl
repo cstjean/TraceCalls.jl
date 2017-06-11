@@ -3,7 +3,7 @@ module TraceCalls
 
 using MacroTools, Utils
 
-export @traceable, @trace, Trace, filter_trace, limit_depth
+export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace
 
 const active = fill(true)
 
@@ -31,9 +31,17 @@ Base.length(tr::Trace) = length(tr.called)
 Base.start(tr::Trace) = 1
 Base.next(tr::Trace, i::Int) = (tr[i], i+1)
 Base.done(tr::Trace, i::Int) = i == length(tr)+1
-function (tr::Trace)()
-    return tr.func(tr.args...; tr.kwargs...)
-end
+(tr::Trace)() = tr.func(tr.args...; tr.kwargs...)
+call_mac(mac::Symbol, tr) = eval(Main, Expr(:macrocall, mac, :($(tr.func)($(tr.args...); $(tr.kwargs...)))))
+call_mac(mac::Expr, tr) =
+    (mac.head==:macrocall ? call_mac(only(mac.args), tr) :
+     error("Unable to call macro $mac"))
+
+""" `map_trace(f, tr::Trace)` recursively applies the function f to each `Trace` in `tr`,
+and stores the result in `Trace.return_value` """
+map_trace(f, tr::Trace) = Trace(tr.func, tr.args, tr.kwargs,
+                                [map_trace(f, c) for c in tr.called], f(tr))
+map_trace(mac::Union{Symbol, Expr}, tr::Trace) = map_trace(sub->call_mac(mac, sub), tr)
 
 top_level_dummy() = error("top_level_dummy is not callable")
 

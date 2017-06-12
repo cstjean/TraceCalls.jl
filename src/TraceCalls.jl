@@ -2,8 +2,10 @@ __precompile__()
 module TraceCalls
 
 using MacroTools, Utils
+using Base.Test: @inferred
 
-export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace, FontColor, collect_trace
+export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace, FontColor,
+    collect_trace, is_inferred, redgreen
 
 const active = fill(true)
 
@@ -32,9 +34,14 @@ Base.start(tr::Trace) = 1
 Base.next(tr::Trace, i::Int) = (tr[i], i+1)
 Base.done(tr::Trace, i::Int) = i == length(tr)+1
 (tr::Trace)() = tr.func(tr.args...; tr.kwargs...)
-call_mac(mac::Symbol, tr) = eval(Main, Expr(:macrocall, mac, :($(tr.func)($(tr.args...); $(tr.kwargs...)))))
-call_mac(mac::Expr, tr) =
-    (mac.head==:macrocall ? call_mac(only(mac.args), tr) :
+call_mac(mac::Symbol, tr::Trace, mod::Module=Main) =
+    eval(mod, Expr(:macrocall, mac, (isempty(tr.kwargs) ?
+                                     # Needs special casing because @inferred chokes
+                                     # on kwargs-less funcalls otherwise.
+                                     :($(tr.func)($(tr.args...))) :
+                                     :($(tr.func)($(tr.args...); $(tr.kwargs))))))
+call_mac(mac::Expr, tr::Trace, mod::Module=Main) =
+    (mac.head==:macrocall ? call_mac(only(mac.args), tr, mod) :
      error("Unable to call macro $mac"))
 
 """ `map_trace(f, tr::Trace)` recursively applies the function f to each `Trace` in `tr`,
@@ -161,7 +168,7 @@ sub_called_html(tr::Trace) =
 
 call_html(::Any, tr::Trace) =
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    "<pre>$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) = $(return_val_html(tr.return_value))</pre>"
+    "<pre>$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) => $(return_val_html(tr.return_value))</pre>"
 
 trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
 
@@ -182,17 +189,19 @@ limit_depth(tr::Trace, n::Int) =
 
 function is_inferred(tr::Trace)
     try
-        call_mac(:@inferred, tr)
+        call_mac(:@inferred, tr, Base.Test)
         return true
     catch e
-        if e isa ErrorException && "does not match inferred return type" in e.msg
+        if e isa ErrorException && contains(e.msg, "does not match inferred return type")
             return false
+        else
+            rethrow()
         end
     end
 end
 
 redgreen(tr::Trace) =
-    map_trace(FontColor(sub->sub.return_value ? "green" : "red", sub.return_value), tr)
+    map_trace(sub->FontColor(sub.return_value ? "green" : "red", sub.return_value), tr)
 
 
 

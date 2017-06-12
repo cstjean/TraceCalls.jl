@@ -5,7 +5,7 @@ using MacroTools, Utils
 using Base.Test: @inferred
 
 export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace, FontColor,
-    collect_trace, is_inferred, redgreen
+    collect_trace, is_inferred, redgreen, greenred
 
 const active = fill(true)
 
@@ -63,6 +63,8 @@ function split_curly(e::Expr)
     return name, args
 end
 
+""" `@traceable function foo(...) ... end` marks a function definition for the `@trace`
+macro. See the README for details. """
 macro traceable(fdef)
     if !active[] return esc(fdef) end
 
@@ -200,9 +202,28 @@ function is_inferred(tr::Trace)
     end
 end
 
+function redgreen(x::Number)
+    # red is ff0000, of course...
+    hex(frac) = round(UInt8, frac*255)
+    f = clamp(x, 0.0, 1.0) * 1.0
+    return bytes2hex([hex(1-f), hex(f), UInt8(0)])
+end
+redgreen(x::Bool) = x ? "green" : "red"
+
 redgreen(tr::Trace) =
-    map_trace(sub->FontColor(sub.return_value ? "green" : "red", sub.return_value), tr)
+    map_trace(sub->FontColor(redgreen(sub.return_value), sub.return_value), tr)
+greenred(tr::Trace) =
+    map_trace(sub->FontColor(redgreen(1-sub.return_value), sub.return_value), tr)
 
+Base.maximum(tr::Trace) = maximum(sub.return_value for sub in collect_trace(tr))
+Base.round(tr::Trace, n::Int) = map_trace(sub->round(sub.return_value, n), tr)
+Base.normalize(tr::Trace, div=tr.return_value) =
+    map_trace(sub->sub.return_value / div, tr)
 
+""" `time(tr::Trace, timing_macro=:@elapsed)` times each subtrace within `tr` using
+`@elapsed` (though it is recommended to use `BenchmarkTools.@belapsed` to profile short
+functions) """
+Base.time(tr::Trace, timing_macro=:@elapsed) =
+    greenred(round(normalize(map_trace(timing_macro, tr)), 4))
 
 end # module

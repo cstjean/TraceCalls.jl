@@ -63,10 +63,27 @@ function split_curly(e::Expr)
     return name, args
 end
 
+""" `@traceable_loose(expr)` is like `traceable(expr)`, but doesn't error on non-function
+definitions (it's a helper for `@traceable begin ... end`) """
+macro traceable_loose(expr)
+    try
+        parse_function_definition(expr)
+    catch e
+        return esc(expr)
+    end
+    esc(:($TraceCalls.@traceable $expr))
+end
+
 """ `@traceable function foo(...) ... end` marks a function definition for the `@trace`
 macro. See the README for details. """
-macro traceable(fdef)
+macro traceable(fdef::Expr)
     if !active[] return esc(fdef) end
+
+    if fdef.head == :block
+        return esc(quote
+            $([:($TraceCalls.@traceable_loose $expr) for expr in fdef.args]...)
+        end)
+    end
 
     func, args, kwargs, body_block, ret_type = parse_function_definition(fdef)
     fname, params = split_curly(func)

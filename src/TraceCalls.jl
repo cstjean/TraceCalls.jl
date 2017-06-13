@@ -93,7 +93,8 @@ macro traceable(fdef::Expr)
         arg_name(arg)===nothing ? :($(gensym())::$(splitarg(arg)[2])) : arg
     args = map(handle_missing_arg, args)
     all_args = [args..., kwargs...]
-    @gensym do_body new_trace prev_trace e res
+    @gensym new_trace prev_trace e res
+    do_body = gensym(fname)
     esc(quote
         @inline function $do_body{$(params...)}($(all_args...))
             $body_block

@@ -227,8 +227,11 @@ function redgreen(x::Number)
 end
 redgreen(x::Bool) = x ? "green" : "red"
 
+""" `redgreen(tr::Trace)` colors all `return_value`s as shades of red/green, with
+0/false being pure red and 1/true being pure green. """
 redgreen(tr::Trace) =
     map_trace(sub->FontColor(redgreen(sub.return_value), sub.return_value), tr)
+""" `greenred(tr::Trace)` is like `redgreen`, but with 0/false=green, 1/true=red. """
 greenred(tr::Trace) =
     map_trace(sub->FontColor(redgreen(1-sub.return_value), sub.return_value), tr)
 

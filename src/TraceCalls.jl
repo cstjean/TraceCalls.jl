@@ -5,7 +5,7 @@ using MacroTools, Utils
 using Base.Test: @inferred
 
 export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace, FontColor,
-    collect_trace, is_inferred, redgreen, greenred
+    collect_trace, is_inferred, map_is_inferred, redgreen, greenred
 
 const active = fill(true)
 
@@ -219,6 +219,7 @@ function is_inferred(tr::Trace)
         end
     end
 end
+map_is_inferred(tr::Trace) = redgreen(map_trace(is_inferred, tr))
 
 function redgreen(x::Number)
     # red is ff0000, of course...

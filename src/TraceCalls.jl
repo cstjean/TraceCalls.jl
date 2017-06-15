@@ -5,7 +5,7 @@ using MacroTools, Utils
 using Base.Test: @inferred
 
 export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace, FontColor,
-    collect_trace, is_inferred, map_is_inferred, redgreen, greenred
+    collect_trace, is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred
 
 const active = fill(true)
 
@@ -220,6 +220,12 @@ function is_inferred(tr::Trace)
     end
 end
 map_is_inferred(tr::Trace) = redgreen(map_trace(is_inferred, tr))
+""" `@trace_inferred ...some_expression...` computes the trace of `some_expression`,
+and shows `true` for all type-stable function calls in the trace, and `false` otherwise.
+"""
+macro trace_inferred(expr)
+    esc(:($TraceCalls.map_is_inferred($TraceCalls.@trace $expr)))
+end
 
 function redgreen(x::Number)
     # red is ff0000, of course...

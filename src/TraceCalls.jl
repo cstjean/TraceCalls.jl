@@ -192,10 +192,21 @@ call_html(::Any, tr::Trace) =
 
 trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
 
-filter_trace(f::Function, tr::Trace) =
+""" `filter_trace_cutting(f::Function, tr::Trace)` filters all subtraces (and their
+callees) for which `f(tr)` is false. """
+filter_trace_cutting(f::Function, tr::Trace) =
     Trace(tr.func, tr.args, tr.kwargs,
-          [filter_trace(f, sub_tr) for sub_tr in tr.called if f(sub_tr)],
+          [filter_trace_cutting(f, sub_tr) for sub_tr in tr.called if f(sub_tr)],
           tr.return_value)
+
+filter_descendents(f, tr) =
+    # Special casing because of #18852
+    isempty(tr.called) ? [] : [t for sub in tr.called for t in filter_trace_(f, sub)]
+filter_trace_(f, tr) =
+    f(tr) ? [Trace(tr.func, tr.args, tr.kwargs, filter_descendents(f, tr),
+                   tr.return_value)] : filter_descendents(f, tr)
+filter_trace(f::Function, tr::Trace) =
+    Trace(tr.func, tr.args, tr.kwargs, filter_descendents(f, tr), tr.return_value)
 
 """ `collect_trace(tr::Trace)` returns a vector of all `Trace` objects within `tr`. """
 collect_trace(tr::Trace) = Trace[tr; mapreduce(collect_trace, vcat, [], tr)]

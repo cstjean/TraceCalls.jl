@@ -5,7 +5,8 @@ using MacroTools, Utils
 using Base.Test: @inferred
 
 export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace, FontColor,
-    collect_trace, is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred
+    collect_trace, is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
+    compare_past_trace
 
 const active = fill(true)
 
@@ -264,5 +265,27 @@ Base.normalize(tr::Trace, div=tr.return_value) =
 functions) """
 Base.time(tr::Trace, timing_macro=:@elapsed) =
     greenred(round(normalize(map_trace(timing_macro, tr)), 4))
+
+################################################################################
+
+struct IsEqual
+    a
+    b
+end
+
+iseql(a::Nullable, b::Nullable) = isequal(a, b)
+iseql(a, b) = a == b
+val_html(isd::IsEqual) =
+    val_html(FontColor(redgreen(iseql(isd.a, isd.b)),
+                       iseql(isd.a, isd.b) ? :equal :
+                       "<u>before</u>: $(val_html(isd.a)) <u>vs. now:</u> $(val_html(isd.b))"))
+
+""" `compare_past_trace(old_trace::Trace)` reruns every subtrace in `old_trace`, and
+shows in red where the new result differs from the old. """
+function compare_past_trace(old_trace::Trace)
+    # TODO: add optional filtering
+    map_trace(tr) do sub_tr
+        IsDiff(sub_tr.return_value, sub_tr()) end
+end
 
 end # module

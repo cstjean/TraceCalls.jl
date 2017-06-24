@@ -273,19 +273,22 @@ struct IsEqual
     b
 end
 
+iseql(isd::IsEqual) = iseql(isd.a, isd.b)
 iseql(a::Nullable, b::Nullable) = isequal(a, b)
 iseql(a, b) = a == b
 val_html(isd::IsEqual) =
-    val_html(FontColor(redgreen(iseql(isd.a, isd.b)),
-                       iseql(isd.a, isd.b) ? :equal :
+    val_html(FontColor(redgreen(iseql(isd)),
+                       iseql(isd) ? string("Same", val_html(isd.a)) :
                        "<u>before</u>: $(val_html(isd.a)) <u>vs. now:</u> $(val_html(isd.b))"))
 
-""" `compare_past_trace(old_trace::Trace)` reruns every subtrace in `old_trace`, and
-shows in red where the new result differs from the old. """
-function compare_past_trace(old_trace::Trace)
-    # TODO: add optional filtering
-    map_trace(tr) do sub_tr
-        IsDiff(sub_tr.return_value, sub_tr()) end
+
+""" `compare_past_trace(old_trace::Trace; filter_out_equal=true))` reruns every subtrace
+in `old_trace`, and shows in red where the new result differs from the old.
+If `filter_out_equal==true`, only show the equal """
+function compare_past_trace(old_trace::Trace; filter_out_equal=true)
+    tr2 = map_trace(old_trace) do sub_tr
+        IsEqual(sub_tr.return_value, sub_tr()) end
+    return filter_out_equal ? filter_trace(subtr->!iseql(subtr.return_value), tr2) : tr2
 end
 
 end # module

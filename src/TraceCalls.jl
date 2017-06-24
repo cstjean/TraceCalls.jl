@@ -166,6 +166,9 @@ struct Bold
 end
 return_val_html(x) =  val_html(Bold(FontColor("green", x)))
 return_val_html(x::Exception) = val_html(FontColor("red", x))
+""" `TraceCalls.val_html(x)` is the HTML used by `TraceCalls` to display each value
+(arguments and return values). Customize it by overloading it. Defaults to `string(x)`.
+"""
 val_html(x) = string(x)
 val_html(x::FontColor) = """<font color=$(x.color)>""" * val_html(x.content) * """</font>"""
 val_html(x::Bold) = "<b>" * val_html(x.content) * "</b>"

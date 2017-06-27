@@ -8,6 +8,8 @@ export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace, FontColo
     collect_trace, is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace
 
+""" When `TraceCalls.active[]` is `false`, `@traceable ...` is an identity macro
+(it doesn't modify the function at all) """
 const active = fill(true)
 
 mutable struct Trace

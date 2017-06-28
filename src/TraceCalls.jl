@@ -5,9 +5,9 @@ using MacroTools, Utils
 using Base.Test: @inferred
 using ClobberingReload
 
-export @traceable, @trace, Trace, filter_trace, limit_depth, map, FontColor,
-    collect_trace, is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
-    compare_past_trace, traceable!
+export @traceable, @trace, Trace, limit_depth, FontColor,
+    is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
+    compare_past_trace, traceable!, filter_func
 
 """ When `TraceCalls.active[]` is `false`, `@traceable ...` is an identity macro
 (it doesn't modify the function at all) """
@@ -35,9 +35,10 @@ Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int) = tr.called[i]
 Base.getindex(tr::Trace, i::Int, j::Int, args...) = tr.called[i][j, args...]
 Base.length(tr::Trace) = length(tr.called)
-Base.start(tr::Trace) = 1
-Base.next(tr::Trace, i::Int) = (tr[i], i+1)
-Base.done(tr::Trace, i::Int) = i == length(tr)+1
+# We've disabled iteration because it doesn't align with `Base.map`'s behaviour
+# Base.start(tr::Trace) = 1
+# Base.next(tr::Trace, i::Int) = (tr[i], i+1)
+# Base.done(tr::Trace, i::Int) = i == length(tr)+1
 (tr::Trace)() = tr.func(tr.args...; tr.kwargs...)
 call_mac(mac::Symbol, tr::Trace, mod::Module=Main) =
     eval(mod, Expr(:macrocall, mac, (isempty(tr.kwargs) ?
@@ -225,24 +226,29 @@ call_html(::Any, tr::Trace) =
 
 trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
 
-""" `filter_trace_cutting(f::Function, tr::Trace)` filters all subtraces (and their
+""" `filter_cutting(f::Function, tr::Trace)` filters all subtraces (and their
 callees) for which `f(tr)` is false. """
-filter_trace_cutting(f::Function, tr::Trace) =
+filter_cutting(f::Function, tr::Trace) =
     Trace(tr.func, tr.args, tr.kwargs,
-          [filter_trace_cutting(f, sub_tr) for sub_tr in tr.called if f(sub_tr)],
+          [filter_cutting(f, sub_tr) for sub_tr in tr.called if f(sub_tr)],
           tr.return_value)
 
-filter_descendents(f, tr) =
+filter_descendents(f, tr) = # helper
     # Special casing because of #18852
-    isempty(tr.called) ? [] : [t for sub in tr.called for t in filter_trace_(f, sub)]
-filter_trace_(f, tr) =
+    isempty(tr.called) ? [] : [t for sub in tr.called for t in filter_(f, sub)]
+filter_(f, tr) =
     f(tr) ? [Trace(tr.func, tr.args, tr.kwargs, filter_descendents(f, tr),
                    tr.return_value)] : filter_descendents(f, tr)
-filter_trace(f::Function, tr::Trace) =
+Base.filter(f::Function, tr::Trace) =
     Trace(tr.func, tr.args, tr.kwargs, filter_descendents(f, tr), tr.return_value)
 
-""" `collect_trace(tr::Trace)` returns a vector of all `Trace` objects within `tr`. """
-collect_trace(tr::Trace) = Trace[tr; mapreduce(collect_trace, vcat, [], tr)]
+""" `filter_func(functions::Vector, tr::Trace)` keeps only Trace objects whose function
+is one of `functions` """
+filter_func(functions::Vector, tr::Trace) = filter(tr->tr.func in functions, tr)
+filter_func(func::Function, tr::Trace) = filter_func([func], tr)
+
+""" `collect(tr::Trace)` returns a vector of all `Trace` objects within `tr`. """
+Base.collect(tr::Trace) = Trace[tr; mapreduce(collect, vcat, [], tr)]
 
 """ `limit_depth(::Trace, n::Int)` prunes the Trace-tree to a depth of `n` (convenient
 to first explore a trace at a high-level) """
@@ -287,7 +293,7 @@ redgreen(tr::Trace) =
 greenred(tr::Trace) =
     map(sub->FontColor(redgreen(1-sub.return_value), sub.return_value), tr)
 
-Base.maximum(tr::Trace) = maximum(sub.return_value for sub in collect_trace(tr))
+Base.maximum(tr::Trace) = maximum(sub.return_value for sub in collect(tr))
 Base.round(tr::Trace, n::Int) = map(sub->round(sub.return_value, n), tr)
 Base.normalize(tr::Trace, div=tr.return_value) =
     map(sub->sub.return_value / div, tr)
@@ -320,7 +326,7 @@ If `filter_out_equal==true`, only show the equal """
 function compare_past_trace(old_trace::Trace; filter_out_equal=true)
     tr2 = map(old_trace) do sub_tr
         IsEqual(sub_tr.return_value, sub_tr()) end
-    return filter_out_equal ? filter_trace(subtr->!iseql(subtr.return_value), tr2) : tr2
+    return filter_out_equal ? filter(subtr->!iseql(subtr.return_value), tr2) : tr2
 end
 
 end # module

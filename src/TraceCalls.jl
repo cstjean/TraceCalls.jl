@@ -5,7 +5,7 @@ using MacroTools, Utils
 using Base.Test: @inferred
 using ClobberingReload
 
-export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace, FontColor,
+export @traceable, @trace, Trace, filter_trace, limit_depth, map, FontColor,
     collect_trace, is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, traceable!
 
@@ -49,11 +49,11 @@ call_mac(mac::Expr, tr::Trace, mod::Module=Main) =
     (mac.head==:macrocall ? call_mac(only(mac.args), tr, mod) :
      error("Unable to call macro $mac"))
 
-""" `map_trace(f, tr::Trace)` recursively applies the function f to each `Trace` in `tr`,
+""" `map(f, tr::Trace)` recursively applies the function f to each `Trace` in `tr`,
 and stores the result in `Trace.return_value` """
-map_trace(f, tr::Trace) = Trace(tr.func, tr.args, tr.kwargs,
-                                [map_trace(f, c) for c in tr.called], f(tr))
-map_trace(mac::Union{Symbol, Expr}, tr::Trace) = map_trace(sub->call_mac(mac, sub), tr)
+Base.map(f, tr::Trace) = Trace(tr.func, tr.args, tr.kwargs,
+                               [map(f, c) for c in tr.called], f(tr))
+Base.map(mac::Union{Symbol, Expr}, tr::Trace) = map(sub->call_mac(mac, sub), tr)
 
 top_level_dummy() = error("top_level_dummy is not callable")
 
@@ -263,7 +263,7 @@ function is_inferred(tr::Trace)
         end
     end
 end
-map_is_inferred(tr::Trace) = redgreen(map_trace(is_inferred, tr))
+map_is_inferred(tr::Trace) = redgreen(map(is_inferred, tr))
 """ `@trace_inferred ...some_expression...` computes the trace of `some_expression`,
 and shows `true` for all type-stable function calls in the trace, and `false` otherwise.
 """
@@ -282,21 +282,21 @@ redgreen(x::Bool) = x ? "green" : "red"
 """ `redgreen(tr::Trace)` colors all `return_value`s as shades of red/green, with
 0/false being pure red and 1/true being pure green. """
 redgreen(tr::Trace) =
-    map_trace(sub->FontColor(redgreen(sub.return_value), sub.return_value), tr)
+    map(sub->FontColor(redgreen(sub.return_value), sub.return_value), tr)
 """ `greenred(tr::Trace)` is like `redgreen`, but with 0/false=green, 1/true=red. """
 greenred(tr::Trace) =
-    map_trace(sub->FontColor(redgreen(1-sub.return_value), sub.return_value), tr)
+    map(sub->FontColor(redgreen(1-sub.return_value), sub.return_value), tr)
 
 Base.maximum(tr::Trace) = maximum(sub.return_value for sub in collect_trace(tr))
-Base.round(tr::Trace, n::Int) = map_trace(sub->round(sub.return_value, n), tr)
+Base.round(tr::Trace, n::Int) = map(sub->round(sub.return_value, n), tr)
 Base.normalize(tr::Trace, div=tr.return_value) =
-    map_trace(sub->sub.return_value / div, tr)
+    map(sub->sub.return_value / div, tr)
 
 """ `time(tr::Trace, timing_macro=:@elapsed)` times each subtrace within `tr` using
 `@elapsed` (though it is recommended to use `BenchmarkTools.@belapsed` to profile short
 functions) """
 Base.time(tr::Trace, timing_macro=:@elapsed) =
-    greenred(round(normalize(map_trace(timing_macro, tr)), 4))
+    greenred(round(normalize(map(timing_macro, tr)), 4))
 
 ################################################################################
 
@@ -318,7 +318,7 @@ val_html(isd::IsEqual) =
 in `old_trace`, and shows in red where the new result differs from the old.
 If `filter_out_equal==true`, only show the equal """
 function compare_past_trace(old_trace::Trace; filter_out_equal=true)
-    tr2 = map_trace(old_trace) do sub_tr
+    tr2 = map(old_trace) do sub_tr
         IsEqual(sub_tr.return_value, sub_tr()) end
     return filter_out_equal ? filter_trace(subtr->!iseql(subtr.return_value), tr2) : tr2
 end

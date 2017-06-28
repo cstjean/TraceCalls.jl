@@ -3,10 +3,11 @@ module TraceCalls
 
 using MacroTools, Utils
 using Base.Test: @inferred
+using ClobberingReload
 
 export @traceable, @trace, Trace, filter_trace, limit_depth, map_trace, FontColor,
     collect_trace, is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
-    compare_past_trace
+    compare_past_trace, traceable!
 
 """ When `TraceCalls.active[]` is `false`, `@traceable ...` is an identity macro
 (it doesn't modify the function at all) """
@@ -29,7 +30,7 @@ function Base.copy!(dest::Trace, src::Trace)
 end
 
 Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.return_value)
-struct NotReturned end
+struct NotReturned end   # special flag value
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int) = tr.called[i]
 Base.getindex(tr::Trace, i::Int, j::Int, args...) = tr.called[i][j, args...]
@@ -61,21 +62,26 @@ top_trace(fun) = Trace(fun, (), (), [], nothing)
 const trace_data = top_trace(top_level_dummy)
 const current_trace = fill(trace_data)
 
-split_curly(s::Symbol) = (s, ())
-function split_curly(e::Expr)
-    @assert @capture(e, name_{args__}) "@traceable cannot handle $e"
-    return name, args
+function split_curly(e)
+    if @capture(e, name_{args__})
+        return name, args
+    else
+        return (e, ())
+    end
 end
+
+is_function_definition(expr) = 
+    try
+        parse_function_definition(expr)
+        true
+    catch e
+        false
+    end
 
 """ `@traceable_loose(expr)` is like `traceable(expr)`, but doesn't error on non-function
 definitions (it's a helper for `@traceable begin ... end`) """
 macro traceable_loose(expr)
-    try
-        parse_function_definition(expr)
-    catch e
-        return esc(expr)
-    end
-    esc(:($TraceCalls.@traceable $expr))
+    is_function_definition(expr) ? esc(:($TraceCalls.@traceable $expr)) : esc(expr)
 end
 
 """ `@traceable function foo(...) ... end` marks a function definition for the `@trace`
@@ -98,7 +104,7 @@ macro traceable(fdef::Expr)
     args = map(handle_missing_arg, args)
     all_args = [args..., kwargs...]
     @gensym new_trace prev_trace e res
-    do_body = gensym(fname)
+    do_body = fname isa Expr ? gensym() : gensym(fname)
     esc(quote
         @inline function $do_body{$(params...)}($(all_args...))
             $body_block
@@ -132,6 +138,26 @@ macro traceable(fdef::Expr)
             end
         end
     end)
+end
+
+""" `traceable!(module_name)` makes every[1] function in `module_name` traceable.
+
+[1] Certain conditions apply. Try it and see. Use `@traceable` on individual functions for
+more consistent results.
+"""
+function traceable!(mod)
+    creload_diving(mod) do code
+        map(code) do expr
+            # Everything which isn't an include, and isn't a function definition gets
+            # ignored. That's okay! creload clobbers the existing definitions, and we
+            # don't need to clobber _everything_.
+            if @capture(expr, include(any_))
+                expr
+            elseif is_function_definition(expr)
+                :($TraceCalls.@traceable $expr)
+            end
+        end
+    end
 end
 
 function tracing(fun::Function)

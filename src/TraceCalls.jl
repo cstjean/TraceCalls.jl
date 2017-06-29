@@ -119,31 +119,24 @@ macro traceable(fdef::Expr)
             $body_block
         end
         function $func($(args...); $(kwargs...))::$ret_type
-            if $TraceCalls.is_tracing[]
-                $prev_trace = $TraceCalls.current_trace[]
-                $new_trace =
-                 $TraceCalls.Trace($fname, ($(map(arg_name, args)...),),
-                                   ($([:($(Expr(:quote, arg_name(kwa)))=>$(arg_name(kwa)))
-                                       for kwa in kwargs]...),),
-                                   [], $TraceCalls.NotReturned())
-                $TraceCalls.current_trace[] = $new_trace
-                push!($prev_trace, $new_trace)
-            end
+            if !$TraceCalls.is_tracing[] return $do_body end
+            $prev_trace = $TraceCalls.current_trace[]
+            $new_trace =
+             $TraceCalls.Trace($fname, ($(map(arg_name, args)...),),
+                               ($([:($(Expr(:quote, arg_name(kwa)))=>$(arg_name(kwa)))
+                                   for kwa in kwargs]...),),
+                               [], $TraceCalls.NotReturned())
+            $TraceCalls.current_trace[] = $new_trace
+            push!($prev_trace, $new_trace)
             try
                 $res = $do_body($(map(arg_name, all_args)...))
-                if $TraceCalls.is_tracing[]
-                    $new_trace.value = $res
-                end
+                $new_trace.value = $res
                 return $res
             catch $e
-                if $TraceCalls.is_tracing[]
-                     $new_trace.value = $e
-                end
+                $new_trace.value = $e
                 rethrow()
             finally
-                if $TraceCalls.is_tracing[]
-                    $TraceCalls.current_trace[] = $prev_trace
-                end
+                $TraceCalls.current_trace[] = $prev_trace
             end
         end
     end)

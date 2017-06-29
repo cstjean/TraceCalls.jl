@@ -43,7 +43,8 @@ Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int) = tr.called[i]
 Base.getindex(tr::Trace, i::Int, j::Int, args...) = tr.called[i][j, args...]
 Base.length(tr::Trace) = length(tr.called)
-# We've disabled iteration because it doesn't align with `Base.map`'s behaviour
+# We've disabled iteration because it doesn't align with our desired `Base.map`'s
+# behaviour, and it's kinda useless anyway.
 # Base.start(tr::Trace) = 1
 # Base.next(tr::Trace, i::Int) = (tr[i], i+1)
 # Base.done(tr::Trace, i::Int) = i == length(tr)+1

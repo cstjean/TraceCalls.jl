@@ -109,14 +109,19 @@ macro traceable(fdef::Expr)
     fname, params = split_curly(func)
 
     arg_name(arg) = splitarg(arg)[1]
-    handle_missing_arg(arg) =  # handle name-free arguments like ::Int
-        arg_name(arg)===nothing ? :($(gensym())::$(splitarg(arg)[2])) : arg
-    args = map(handle_missing_arg, args)
-    all_args = [args..., kwargs...]
+    handle_missing_arg(arg::Void) = gensym() # handle name-free arguments like ::Int
+    handle_missing_arg(arg::Symbol) = arg
+    function typed_arg(arg)
+        name, arg_type, is_splat = splitarg(arg)
+        if is_splat arg_type = Any end
+        return :($(handle_missing_arg(name))::$arg_type)
+    end
+    all_args_symbol = map(handle_missing_arg ∘ arg_name, [args..., kwargs...])
+    all_args_typed = map(typed_arg, [args..., kwargs...])
     @gensym new_trace prev_trace e res
     do_body = fname isa Expr ? gensym() : gensym(fname)
     esc(quote
-        @inline function $do_body{$(params...)}($(all_args...))
+        @inline function $do_body{$(params...)}($(all_args_typed...))
             $body_block
         end
         function $func($(args...); $(kwargs...))::$ret_type
@@ -130,7 +135,7 @@ macro traceable(fdef::Expr)
             $TraceCalls.current_trace[] = $new_trace
             push!($prev_trace, $new_trace)
             try
-                $res = $do_body($(map(arg_name, all_args)...))
+                $res = $do_body($(all_args_symbol...))
                 $new_trace.value = $res
                 return $res
             catch $e

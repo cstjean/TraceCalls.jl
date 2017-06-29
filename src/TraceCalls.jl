@@ -13,12 +13,20 @@ export @traceable, @trace, Trace, limit_depth, FontColor,
 (it doesn't modify the function at all) """
 const active = fill(true)
 
+""" A `Trace` object represents a function call. It has fields `func, args, kwargs,
+called, value`, with `func(args...; kwargs...) = value`. `called::Vector{Trace}` of the
+immediate traceable function calls that happened during the execution of this trace.
+
+There are no accessors for `Trace`; please reference its fields directly.
+For instance, `filter(tr->isa(tr.args[1], Int), trace)` will select all calls whose
+first argument is an `Int`. """
 mutable struct Trace
     func::Function
     args::Tuple
     kwargs::Tuple
-    called::Vector{Trace}
-    return_value
+    called::Vector{Trace}  
+    value       # This is the return value of the func(args...) call, but it's also where
+                # the result of `map(f, ::Trace)` will be stored.
 end
 
 function Base.copy!(dest::Trace, src::Trace)
@@ -26,10 +34,10 @@ function Base.copy!(dest::Trace, src::Trace)
     dest.args = src.args
     dest.kwargs = src.kwargs
     dest.called = src.called
-    dest.return_value = src.return_value
+    dest.value = src.value
 end
 
-Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.return_value)
+Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.value)
 struct NotReturned end   # special flag value
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int) = tr.called[i]
@@ -51,7 +59,7 @@ call_mac(mac::Expr, tr::Trace, mod::Module=Main) =
      error("Unable to call macro $mac"))
 
 """ `map(f, tr::Trace)` recursively applies the function f to each `Trace` in `tr`,
-and stores the result in `Trace.return_value` """
+and stores the result in `Trace.value` """
 Base.map(f, tr::Trace) = Trace(tr.func, tr.args, tr.kwargs,
                                [map(f, c) for c in tr.called], f(tr))
 Base.map(mac::Union{Symbol, Expr}, tr::Trace) = map(sub->call_mac(mac, sub), tr)
@@ -124,12 +132,12 @@ macro traceable(fdef::Expr)
             try
                 $res = $do_body($(map(arg_name, all_args)...))
                 if $TraceCalls.is_tracing[]
-                    $new_trace.return_value = $res
+                    $new_trace.value = $res
                 end
                 return $res
             catch $e
                 if $TraceCalls.is_tracing[]
-                     $new_trace.return_value = $e
+                     $new_trace.value = $e
                 end
                 rethrow()
             finally
@@ -165,9 +173,9 @@ function tracing(fun::Function)
     copy!(trace_data, top_trace(fun))
     try
         is_tracing[] = true
-        trace_data.return_value = fun()
+        trace_data.value = fun()
     catch e
-        trace_data.return_value = e
+        trace_data.value = e
     finally
         is_tracing[] = false
     end
@@ -222,7 +230,7 @@ sub_called_html(tr::Trace) =
 
 call_html(::Any, tr::Trace) =
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    "<pre>$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) => $(return_val_html(tr.return_value))</pre>"
+    "<pre>$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) => $(return_val_html(tr.value))</pre>"
 
 trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
 
@@ -231,16 +239,16 @@ callees) for which `f(tr)` is false. """
 filter_cutting(f::Function, tr::Trace) =
     Trace(tr.func, tr.args, tr.kwargs,
           [filter_cutting(f, sub_tr) for sub_tr in tr.called if f(sub_tr)],
-          tr.return_value)
+          tr.value)
 
 filter_descendents(f, tr) = # helper
     # Special casing because of #18852
     isempty(tr.called) ? [] : [t for sub in tr.called for t in filter_(f, sub)]
 filter_(f, tr) =
     f(tr) ? [Trace(tr.func, tr.args, tr.kwargs, filter_descendents(f, tr),
-                   tr.return_value)] : filter_descendents(f, tr)
+                   tr.value)] : filter_descendents(f, tr)
 Base.filter(f::Function, tr::Trace) =
-    Trace(tr.func, tr.args, tr.kwargs, filter_descendents(f, tr), tr.return_value)
+    Trace(tr.func, tr.args, tr.kwargs, filter_descendents(f, tr), tr.value)
 
 """ `filter_func(functions::Vector, tr::Trace)` keeps only Trace objects whose function
 is one of `functions` """
@@ -255,7 +263,7 @@ to first explore a trace at a high-level) """
 limit_depth(tr::Trace, n::Int) =
     Trace(tr.func, tr.args, tr.kwargs,
           [limit_depth(sub_tr, n-1) for sub_tr in tr.called if n > 0],
-          tr.return_value)
+          tr.value)
 
 function is_inferred(tr::Trace)
     try
@@ -285,18 +293,18 @@ function redgreen(x::Number)
 end
 redgreen(x::Bool) = x ? "green" : "red"
 
-""" `redgreen(tr::Trace)` colors all `return_value`s as shades of red/green, with
+""" `redgreen(tr::Trace)` colors all `value`s as shades of red/green, with
 0/false being pure red and 1/true being pure green. """
 redgreen(tr::Trace) =
-    map(sub->FontColor(redgreen(sub.return_value), sub.return_value), tr)
+    map(sub->FontColor(redgreen(sub.value), sub.value), tr)
 """ `greenred(tr::Trace)` is like `redgreen`, but with 0/false=green, 1/true=red. """
 greenred(tr::Trace) =
-    map(sub->FontColor(redgreen(1-sub.return_value), sub.return_value), tr)
+    map(sub->FontColor(redgreen(1-sub.value), sub.value), tr)
 
-Base.maximum(tr::Trace) = maximum(sub.return_value for sub in collect(tr))
-Base.round(tr::Trace, n::Int) = map(sub->round(sub.return_value, n), tr)
-Base.normalize(tr::Trace, div=tr.return_value) =
-    map(sub->sub.return_value / div, tr)
+Base.maximum(tr::Trace) = maximum(sub.value for sub in collect(tr))
+Base.round(tr::Trace, n::Int) = map(sub->round(sub.value, n), tr)
+Base.normalize(tr::Trace, div=tr.value) =
+    map(sub->sub.value / div, tr)
 
 """ `time(tr::Trace, timing_macro=:@elapsed)` times each subtrace within `tr` using
 `@elapsed` (though it is recommended to use `BenchmarkTools.@belapsed` to profile short
@@ -325,8 +333,8 @@ in `old_trace`, and shows in red where the new result differs from the old.
 If `filter_out_equal==true`, only show the equal """
 function compare_past_trace(old_trace::Trace; filter_out_equal=true)
     tr2 = map(old_trace) do sub_tr
-        IsEqual(sub_tr.return_value, sub_tr()) end
-    return filter_out_equal ? filter(subtr->!iseql(subtr.return_value), tr2) : tr2
+        IsEqual(sub_tr.value, sub_tr()) end
+    return filter_out_equal ? filter(subtr->!iseql(subtr.value), tr2) : tr2
 end
 
 end # module

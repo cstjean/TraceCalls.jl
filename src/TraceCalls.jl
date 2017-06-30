@@ -75,7 +75,7 @@ const current_trace = fill(trace_data)
 
 is_function_definition(expr) = 
     try
-        parse_function_definition(expr)
+        splitdef(expr)
         !is_callable_definition(expr)
     catch e
         false

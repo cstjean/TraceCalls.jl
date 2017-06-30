@@ -2,6 +2,7 @@ __precompile__()
 module TraceCalls
 
 using MacroTools, Utils
+using MacroTools: combinedef
 using Base.Test: @inferred
 using ClobberingReload
 
@@ -105,9 +106,6 @@ macro traceable(fdef::Expr)
         end)
     end
 
-    func, args, kwargs, body_block, ret_type = parse_function_definition(fdef)
-    fname, params = split_curly(func)
-
     arg_name(arg) = splitarg(arg)[1]
     handle_missing_arg(arg::Void) = gensym() # handle name-free arguments like ::Int
     handle_missing_arg(arg::Symbol) = arg
@@ -116,35 +114,42 @@ macro traceable(fdef::Expr)
         if is_splat arg_type = Any end
         return :($(handle_missing_arg(name))::$arg_type)
     end
-    all_args_symbol = map(handle_missing_arg ∘ arg_name, [args..., kwargs...])
-    all_args_typed = map(typed_arg, [args..., kwargs...])
+    
+    di = splitdef(fdef)
+    fname = di[:name]
+
+    do_body_di = copy(di)
+    do_body_di[:name] = do_body = fname isa Expr ? gensym() : gensym(fname)
+    do_body_di[:args] = map(typed_arg, [di[:args]..., di[:kwargs]...])
+    do_body_di[:kwargs] = []
+
+    updated_fun_di = copy(di)
     @gensym new_trace prev_trace e res
-    do_body = fname isa Expr ? gensym() : gensym(fname)
-    esc(quote
-        @inline function $do_body{$(params...)}($(all_args_typed...))
-            $body_block
+    all_args_symbol = map(handle_missing_arg ∘ arg_name, [di[:args]..., di[:kwargs]...])
+    updated_fun_di[:body] = quote
+        if !$TraceCalls.is_tracing[] return $do_body($(all_args_symbol...)) end
+        $prev_trace = $TraceCalls.current_trace[]
+        $new_trace =
+            $TraceCalls.Trace($fname, ($(map(arg_name, di[:args])...),),
+                              ($([:($(Expr(:quote, arg_name(kwa)))=>$(arg_name(kwa)))
+                                  for kwa in di[:kwargs]]...),),
+                              [], $TraceCalls.NotReturned())
+        $TraceCalls.current_trace[] = $new_trace
+        push!($prev_trace, $new_trace)
+        try
+            $res = $do_body($(all_args_symbol...))
+            $new_trace.value = $res
+            return $res
+        catch $e
+            $new_trace.value = $e
+            rethrow()
+        finally
+            $TraceCalls.current_trace[] = $prev_trace
         end
-        function $func($(args...); $(kwargs...))::$ret_type
-            if !$TraceCalls.is_tracing[] return $do_body end
-            $prev_trace = $TraceCalls.current_trace[]
-            $new_trace =
-             $TraceCalls.Trace($fname, ($(map(arg_name, args)...),),
-                               ($([:($(Expr(:quote, arg_name(kwa)))=>$(arg_name(kwa)))
-                                   for kwa in kwargs]...),),
-                               [], $TraceCalls.NotReturned())
-            $TraceCalls.current_trace[] = $new_trace
-            push!($prev_trace, $new_trace)
-            try
-                $res = $do_body($(all_args_symbol...))
-                $new_trace.value = $res
-                return $res
-            catch $e
-                $new_trace.value = $e
-                rethrow()
-            finally
-                $TraceCalls.current_trace[] = $prev_trace
-            end
-        end
+    end
+    return esc(quote
+        @inline $(combinedef(do_body_di))
+        $(combinedef(updated_fun_di))
     end)
 end
 

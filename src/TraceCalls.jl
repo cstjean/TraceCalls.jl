@@ -1,7 +1,7 @@
 __precompile__()
 module TraceCalls
 
-using MacroTools, Utils
+using MacroTools
 using MacroTools: combinedef
 using Base.Test: @inferred
 using ClobberingReload

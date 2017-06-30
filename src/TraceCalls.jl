@@ -4,7 +4,7 @@ module TraceCalls
 using MacroTools
 using MacroTools: combinedef
 using Base.Test: @inferred
-using ClobberingReload
+using ClobberingReload: run_code_in
 
 export @traceable, @trace, Trace, limit_depth, FontColor,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
@@ -89,6 +89,15 @@ end
 
 is_callable_definition(fundef) = @capture(splitdef(fundef)[:name], (a_::b_) | (::b_))
 
+struct EvalableCode
+    expr::Expr
+    mod::Module
+end
+define!(fundef::EvalableCode) = run_code_in(fundef.expr, fundef.mod)
+
+const tracing_definitions = []
+const nontracing_definitions = []
+
 """ `@traceable function foo(...) ... end` marks a function definition for the `@trace`
 macro. See the README for details. """
 macro traceable(fdef::Expr)
@@ -122,7 +131,6 @@ macro traceable(fdef::Expr)
     @gensym new_trace prev_trace e res
     all_args_symbol = map(handle_missing_arg ∘ arg_name, [di[:args]..., di[:kwargs]...])
     updated_fun_di[:body] = quote
-        if !$TraceCalls.is_tracing[] return $do_body($(all_args_symbol...)) end
         $prev_trace = $TraceCalls.current_trace[]
         $new_trace =
             $TraceCalls.Trace($fname, ($(map(arg_name, di[:args])...),),
@@ -142,10 +150,15 @@ macro traceable(fdef::Expr)
             $TraceCalls.current_trace[] = $prev_trace
         end
     end
-    return esc(quote
+    tracing_code = quote
         @inline $(combinedef(do_body_di))
         $(combinedef(updated_fun_di))
-    end)
+    end
+
+    mod = current_module()
+    push!(nontracing_definitions, EvalableCode(fdef, mod))
+    push!(tracing_definitions, EvalableCode(tracing_code, mod))
+    return esc(fdef)
 end
 
 """ `traceable!(module_name)` makes every[1] function in `module_name` traceable.
@@ -168,17 +181,22 @@ function traceable!(mod)
     end
 end
 
+trace!() = foreach(define!, tracing_definitions)
+untrace!() = foreach(define!, nontracing_definitions)
+
 function tracing(fun::Function)
     copy!(trace_data, top_trace(fun))
+    trace!()
     try
-        is_tracing[] = true
-        trace_data.value = fun()
+        trace_data.value = @eval $fun()  # necessary to @eval because of world age
     catch e
         trace_data.value = e
     finally
-        is_tracing[] = false
+        untrace!()
     end
-    return copy(trace_data)
+    res = copy(trace_data)
+    copy!(trace_data, top_trace(fun)) # don't hang on to that memory unnecessarily
+    res
 end
 
 macro trace(expr)

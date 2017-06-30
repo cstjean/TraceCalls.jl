@@ -73,18 +73,10 @@ top_trace(fun) = Trace(fun, (), (), [], nothing)
 const trace_data = top_trace(top_level_dummy)
 const current_trace = fill(trace_data)
 
-function split_curly(e)
-    if @capture(e, name_{args__})
-        return name, args
-    else
-        return (e, ())
-    end
-end
-
 is_function_definition(expr) = 
     try
         parse_function_definition(expr)
-        true
+        !is_callable_definition(expr)
     catch e
         false
     end
@@ -95,10 +87,13 @@ macro traceable_loose(expr)
     is_function_definition(expr) ? esc(:($TraceCalls.@traceable $expr)) : esc(expr)
 end
 
+is_callable_definition(fundef) = @capture(splitdef(fundef)[:name], (a_::b_) | (::b_))
+
 """ `@traceable function foo(...) ... end` marks a function definition for the `@trace`
 macro. See the README for details. """
 macro traceable(fdef::Expr)
     if !active[] return esc(fdef) end
+    @assert !is_callable_definition(fdef) "@traceable cannot handle callable object definitions"
 
     if fdef.head == :block
         return esc(quote

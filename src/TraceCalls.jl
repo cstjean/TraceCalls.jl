@@ -262,7 +262,7 @@ function Base.show(io::IO, ::MIME"text/html", tr::Trace)
     write(io, "</ul>")
 end
 
-kwa_eql(kwarg::Pair) = "$(first(kwarg))=$(val_html(second(kwarg)))"
+kwa_eql(kwarg::Pair) = "$(first(kwarg))=$(val_html(last(kwarg)))"
 kwargs_html(kwargs) = "; " * join(map(kwa_eql, kwargs), ", ")
 args_html(kwargs) = join(map(val_html, kwargs), ", ")
 kwargs_html(kwargs::Tuple{}) = ""

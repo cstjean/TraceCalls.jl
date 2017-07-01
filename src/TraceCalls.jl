@@ -4,7 +4,7 @@ module TraceCalls
 using MacroTools
 using MacroTools: combinedef
 using Base.Test: @inferred
-using ClobberingReload: run_code_in, creload_diving
+using ClobberingReload: run_code_in, module_code
 
 export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
@@ -177,8 +177,8 @@ end
 [1] Certain conditions apply. Use `@traceable` on individual functions for
 more consistent results.
 """
-function traceable!(mod)
-    creload_diving(mod) do code
+function traceable!(mod::Module)
+    for (filename, code) in module_code(string(mod))
         map(code) do expr
             # Everything which isn't an include, and isn't a function definition gets
             # ignored. That's okay! creload clobbers the existing definitions, and we
@@ -186,7 +186,7 @@ function traceable!(mod)
             if @capture(expr, include(any_))
                 expr
             elseif is_function_definition(expr)
-                :($TraceCalls.@traceable $expr)
+                process_definition!(expr, mod, filename)
             end
         end
     end

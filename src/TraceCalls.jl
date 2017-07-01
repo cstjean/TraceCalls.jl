@@ -98,18 +98,7 @@ define!(fundef::EvalableCode) = run_code_in(fundef.expr, fundef.mod)
 const tracing_definitions = []
 const nontracing_definitions = []
 
-""" `@traceable function foo(...) ... end` marks a function definition for the `@trace`
-macro. See the README for details. """
-macro traceable(fdef::Expr)
-    if !active[] return esc(fdef) end
-    @assert !is_callable_definition(fdef) "@traceable cannot handle callable object definitions"
-
-    if fdef.head == :block
-        return esc(quote
-            $([:($TraceCalls.@traceable_loose $expr) for expr in fdef.args]...)
-        end)
-    end
-
+function tracing_code(fdef::Expr)::Expr # returns the tracing function definitions
     arg_name(arg) = splitarg(arg)[1]
     handle_missing_arg(arg::Void) = gensym() # handle name-free arguments like ::Int
     handle_missing_arg(arg::Symbol) = arg
@@ -150,14 +139,29 @@ macro traceable(fdef::Expr)
             $TraceCalls.current_trace[] = $prev_trace
         end
     end
-    tracing_code = quote
+    quote
         @inline $(combinedef(do_body_di))
         $(combinedef(updated_fun_di))
     end
+end
+
+""" `@traceable function foo(...) ... end` marks a function definition for the `@trace`
+macro. See the README for details. """
+macro traceable(fdef::Expr)
+    if !active[] return esc(fdef) end
+    @assert !is_callable_definition(fdef) "@traceable cannot handle callable object definitions"
+
+    if fdef.head == :block
+        return esc(quote
+            $([:($TraceCalls.@traceable_loose $expr) for expr in fdef.args]...)
+        end)
+    end
+
+    trace_code = tracing_code(fdef)
 
     mod = current_module()
     push!(nontracing_definitions, EvalableCode(fdef, mod))
-    push!(tracing_definitions, EvalableCode(tracing_code, mod))
+    push!(tracing_definitions, EvalableCode(trace_code, mod))
     return esc(fdef)
 end
 

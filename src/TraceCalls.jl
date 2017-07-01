@@ -193,16 +193,21 @@ end
 
 trace!() = foreach(define!, tracing_definitions)
 untrace!() = foreach(define!, nontracing_definitions)
-
-function tracing(fun::Function)
-    copy!(trace_data, top_trace(fun))
+function with_tracing_definitions(fun::Function)
     trace!()
+    try
+        fun()
+    finally
+        untrace!()
+    end
+end    
+
+tracing(fun::Function) = with_tracing_definitions() do
+    copy!(trace_data, top_trace(fun))
     try
         trace_data.value = @eval $fun()  # necessary to @eval because of world age
     catch e
         trace_data.value = e
-    finally
-        untrace!()
     end
     res = copy(trace_data)
     copy!(trace_data, top_trace(fun)) # don't hang on to that memory unnecessarily

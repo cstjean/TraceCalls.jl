@@ -4,7 +4,7 @@ module TraceCalls
 using MacroTools
 using MacroTools: combinedef
 using Base.Test: @inferred
-using ClobberingReload: run_code_in
+using ClobberingReload: run_code_in, creload_diving
 
 export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
@@ -22,9 +22,9 @@ There are no accessors for `Trace`; please reference its fields directly.
 For instance, `filter(tr->isa(tr.args[1], Int), trace)` will select all calls whose
 first argument is an `Int`. """
 mutable struct Trace
-    func::Function
-    args::Tuple
-    kwargs::Tuple
+    func::Function   # the function called
+    args::Tuple      # the positional arguments
+    kwargs::Tuple    # the keyword arguments
     called::Vector{Trace}  
     value       # This is the return value of the func(args...) call, but it's also where
                 # the result of `map(f, ::Trace)` will be stored.
@@ -92,8 +92,9 @@ is_callable_definition(fundef) = @capture(splitdef(fundef)[:name], (a_::b_) | (:
 struct EvalableCode
     expr::Expr
     mod::Module
+    file::Union{String, Void}
 end
-define!(fundef::EvalableCode) = run_code_in(fundef.expr, fundef.mod)
+define!(ec::EvalableCode) = run_code_in(ec.expr, ec.mod, ec.file)
 
 const tracing_definitions = []
 const nontracing_definitions = []
@@ -145,6 +146,15 @@ function tracing_code(fdef::Expr)::Expr # returns the tracing function definitio
     end
 end
 
+""" Registers both `fdef` and a tracing version of `fdef`, as being defined in the
+file `file` as part of module `mod` """
+function process_definition!(fdef, mod::Module, file)
+    trace_code = tracing_code(fdef)
+
+    push!(nontracing_definitions, EvalableCode(fdef, mod, file))
+    push!(tracing_definitions, EvalableCode(trace_code, mod, file))
+end
+
 """ `@traceable function foo(...) ... end` marks a function definition for the `@trace`
 macro. See the README for details. """
 macro traceable(fdef::Expr)
@@ -157,17 +167,14 @@ macro traceable(fdef::Expr)
         end)
     end
 
-    trace_code = tracing_code(fdef)
-
-    mod = current_module()
-    push!(nontracing_definitions, EvalableCode(fdef, mod))
-    push!(tracing_definitions, EvalableCode(trace_code, mod))
+    file = (@__FILE__) == "" ? nothing : (@__FILE__)
+    process_definition!(fdef, current_module(), file)
     return esc(fdef)
 end
 
 """ `traceable!(module_name)` makes every[1] function in `module_name` traceable.
 
-[1] Certain conditions apply. Try it and see. Use `@traceable` on individual functions for
+[1] Certain conditions apply. Use `@traceable` on individual functions for
 more consistent results.
 """
 function traceable!(mod)

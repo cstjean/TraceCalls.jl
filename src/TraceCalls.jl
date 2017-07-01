@@ -202,16 +202,25 @@ function with_tracing_definitions(fun::Function)
     end
 end    
 
-tracing(fun::Function) = with_tracing_definitions() do
+""" `recording_trace(fun::Function)` sets up a fresh Trace in trace_data, then executes
+`fun` and returns the final Trace object """
+function recording_trace(fun::Function)
     copy!(trace_data, top_trace(fun))
-    try
-        trace_data.value = @eval $fun()  # necessary to @eval because of world age
-    catch e
-        trace_data.value = e
-    end
+    fun()
     res = copy(trace_data)
     copy!(trace_data, top_trace(fun)) # don't hang on to that memory unnecessarily
     res
+end    
+
+tracing(fun::Function) = with_tracing_definitions() do
+    # To debug, just use `with_tracing_definitions()` interactively
+    recording_trace() do
+        try
+            trace_data.value = @eval $fun()  # necessary to @eval because of world age
+        catch e
+            trace_data.value = e
+        end
+    end
 end
 
 macro trace(expr)

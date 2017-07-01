@@ -181,8 +181,7 @@ function traceable!(mod::Module)
     for (filename, code) in module_code(string(mod))
         map(code) do expr
             # Everything which isn't an include, and isn't a function definition gets
-            # ignored. That's okay! creload clobbers the existing definitions, and we
-            # don't need to clobber _everything_.
+            # ignored. That's okay!
             if @capture(expr, include(any_))
                 expr
             elseif is_function_definition(expr)

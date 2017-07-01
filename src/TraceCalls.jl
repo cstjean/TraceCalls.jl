@@ -22,7 +22,7 @@ There are no accessors for `Trace`; please reference its fields directly.
 For instance, `filter(tr->isa(tr.args[1], Int), trace)` will select all calls whose
 first argument is an `Int`. """
 mutable struct Trace
-    func::Function   # the function called
+    func             # the function/callable called
     args::Tuple      # the positional arguments
     kwargs::Tuple    # the keyword arguments
     called::Vector{Trace}  

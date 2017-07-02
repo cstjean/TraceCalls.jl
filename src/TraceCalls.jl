@@ -4,7 +4,8 @@ module TraceCalls
 using MacroTools
 using MacroTools: combinedef, combinearg
 using Base.Test: @inferred
-using ClobberingReload: run_code_in, module_code
+using ClobberingReload
+using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate
 
 export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
@@ -73,10 +74,11 @@ top_trace(fun) = Trace(fun, (), (), [], nothing)
 const trace_data = top_trace(top_level_dummy)
 const current_trace = fill(trace_data)
 
+is_call_definition(fundef) = @capture(splitdef(fundef)[:name], (a_::b_) | (::b_))
 is_function_definition(expr) = 
     try
         splitdef(expr)
-        !is_callable_definition(expr)
+        !is_call_definition(expr)
     catch e
         false
     end
@@ -87,17 +89,9 @@ macro traceable_loose(expr)
     is_function_definition(expr) ? esc(:($TraceCalls.@traceable $expr)) : esc(expr)
 end
 
-is_callable_definition(fundef) = @capture(splitdef(fundef)[:name], (a_::b_) | (::b_))
-
-struct EvalableCode
-    expr::Expr
-    mod::Module
-    file::Union{String, Void}
-end
-define!(ec::EvalableCode) = run_code_in(ec.expr, ec.mod, ec.file)
-
 const tracing_definitions = []
 const nontracing_definitions = []
+const revertible_definitions = RevertibleCodeUpdate[]
 
 """ Turns `::Int=5` into `some_gensym::Int=5` """
 function handle_missing_arg(arg)
@@ -163,11 +157,12 @@ function process_definition!(fdef, mod::Module, file)
     push!(tracing_definitions, EvalableCode(trace_code, mod, file))
 end
 
+
 """ `@traceable function foo(...) ... end` marks a function definition for the `@trace`
 macro. See the README for details. """
 macro traceable(fdef::Expr)
     if !active[] return esc(fdef) end
-    @assert !is_callable_definition(fdef) "@traceable cannot handle callable object definitions"
+    @assert !is_call_definition(fdef) "@traceable cannot handle callable object definitions"
 
     if fdef.head == :block
         return esc(quote
@@ -186,21 +181,15 @@ end
 more consistent results.
 """
 function traceable!(mod::Module)
-    for (filename, code) in module_code(string(mod))
-        map(code) do expr
-            # Everything which isn't an include, and isn't a function definition gets
-            # ignored. That's okay!
-            if @capture(expr, include(any_))
-                expr
-            elseif is_function_definition(expr)
-                process_definition!(expr, mod, filename)
-            end
-        end
+    rc = update_code_revertible_fn(mod) do expr
+        is_function_definition(expr) ? tracing_code(expr) : nothing
     end
+    push!(revertible_definitions, rc)
+    nothing
 end
 
-trace!() = foreach(define!, tracing_definitions)
-untrace!() = foreach(define!, nontracing_definitions)
+trace!() = foreach(apply_code!, revertible_definitions)
+untrace!() = foreach(revert_code!, revertible_definitions)
 function with_tracing_definitions(fun::Function)
     trace!()
     try

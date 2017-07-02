@@ -2,7 +2,7 @@ __precompile__()
 module TraceCalls
 
 using MacroTools
-using MacroTools: combinedef
+using MacroTools: combinedef, combinearg
 using Base.Test: @inferred
 using ClobberingReload: run_code_in, module_code
 
@@ -99,17 +99,25 @@ define!(ec::EvalableCode) = run_code_in(ec.expr, ec.mod, ec.file)
 const tracing_definitions = []
 const nontracing_definitions = []
 
+""" Turns `::Int=5` into `some_gensym::Int=5` """
+function handle_missing_arg(arg)
+    arg_name, arg_type, is_splat, default = splitarg(arg)
+    combinearg(arg_name === nothing ? gensym() : arg_name, arg_type, is_splat, default)
+end
+
 function tracing_code(fdef::Expr)::Expr # returns the tracing function definitions
     arg_name(arg) = splitarg(arg)[1]
-    handle_missing_arg(arg::Void) = gensym() # handle name-free arguments like ::Int
-    handle_missing_arg(arg::Symbol) = arg
     function typed_arg(arg)
+        global uu = fdef
+        global vv = arg
         name, arg_type, is_splat = splitarg(arg)
         if is_splat arg_type = Any end
-        return :($(handle_missing_arg(name))::$arg_type)
+        return :($name::$arg_type)
     end
     
     di = splitdef(fdef)
+    di[:args] = map(handle_missing_arg, di[:args])
+    di[:kwargs] = map(handle_missing_arg, di[:kwargs])
     fname = di[:name]
 
     do_body_di = copy(di)
@@ -119,7 +127,7 @@ function tracing_code(fdef::Expr)::Expr # returns the tracing function definitio
 
     updated_fun_di = copy(di)
     @gensym new_trace prev_trace e res
-    all_args_symbol = map(handle_missing_arg ∘ arg_name, [di[:args]..., di[:kwargs]...])
+    all_args_symbol = map(arg_name, [di[:args]..., di[:kwargs]...])
     updated_fun_di[:body] = quote
         $prev_trace = $TraceCalls.current_trace[]
         $new_trace =

@@ -89,8 +89,6 @@ macro traceable_loose(expr)
     is_function_definition(expr) ? esc(:($TraceCalls.@traceable $expr)) : esc(expr)
 end
 
-const tracing_definitions = []
-const nontracing_definitions = []
 const revertible_definitions = RevertibleCodeUpdate[]
 
 """ Turns `::Int=5` into `some_gensym::Int=5` """
@@ -148,16 +146,6 @@ function tracing_code(fdef::Expr)::Expr # returns the tracing function definitio
     end
 end
 
-""" Registers both `fdef` and a tracing version of `fdef`, as being defined in the
-file `file` as part of module `mod` """
-function process_definition!(fdef, mod::Module, file)
-    trace_code = tracing_code(fdef)
-
-    push!(nontracing_definitions, EvalableCode(fdef, mod, file))
-    push!(tracing_definitions, EvalableCode(trace_code, mod, file))
-end
-
-
 """ `@traceable function foo(...) ... end` marks a function definition for the `@trace`
 macro. See the README for details. """
 macro traceable(fdef::Expr)
@@ -165,13 +153,18 @@ macro traceable(fdef::Expr)
     @assert !is_call_definition(fdef) "@traceable cannot handle callable object definitions"
 
     if fdef.head == :block
+        # TODO: just process it right away... It will be faster
         return esc(quote
             $([:($TraceCalls.@traceable_loose $expr) for expr in fdef.args]...)
         end)
     end
 
     file = (@__FILE__) == "" ? nothing : (@__FILE__)
-    process_definition!(fdef, current_module(), file)
+    mod = current_module()
+    push!(revertible_definitions,
+          RevertibleCodeUpdate(CodeUpdate([EvalableCode(tracing_code(fdef), mod, file)]),
+                               CodeUpdate([EvalableCode(fdef, mod, file)])))
+
     return esc(fdef)
 end
 

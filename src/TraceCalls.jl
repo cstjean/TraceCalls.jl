@@ -6,6 +6,7 @@ using MacroTools: combinedef, combinearg
 using Base.Test: @inferred
 using ClobberingReload
 using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate
+using DataStructures: OrderedDict
 
 export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
@@ -16,6 +17,10 @@ export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
 const active = fill(true)
 
 const revertible_definitions = RevertibleCodeUpdate[]
+const traceable_definitions = OrderedDict()  # We use an OrderedDict because in case we
+                                             # accidentally store the same definition
+                                             # twice, at least the latter one takes
+                                             # precedence.
 
 """ A `Trace` object represents a function call. It has fields `func, args, kwargs,
 called, value`, with `func(args...; kwargs...) = value`. `called::Vector{Trace}` of the
@@ -161,9 +166,13 @@ macro traceable(fdef::Expr)
 
     file = (@__FILE__) == "" ? nothing : (@__FILE__)
     mod = current_module()
-    push!(revertible_definitions,
+    di = splitdef(fdef)
+    signature = (module_name(mod),         # loose approximation of the real signature
+                 :($(di[:name])($([splitarg(arg)[2] for arg in di[:args]]...))))
+    
+    traceable_definitions[signature] =
           RevertibleCodeUpdate(CodeUpdate([EvalableCode(tracing_code(fdef), mod, file)]),
-                               CodeUpdate([EvalableCode(fdef, mod, file)])))
+                               CodeUpdate([EvalableCode(fdef, mod, file)]))
 
     return esc(fdef)
 end
@@ -181,8 +190,11 @@ function traceable!(mod::Module)
     nothing
 end
 
-trace!() = foreach(apply_code!, revertible_definitions)
-untrace!() = foreach(revert_code!, revertible_definitions)
+trace!() = (foreach(apply_code!, revertible_definitions);
+            foreach(apply_code!, values(traceable_definitions)))
+untrace!() = (foreach(revert_code!, revertible_definitions);
+              foreach(revert_code!, values(traceable_definitions)))
+
 function with_tracing_definitions(fun::Function)
     trace!()
     try

@@ -15,6 +15,8 @@ export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
 (it doesn't modify the function at all) """
 const active = fill(true)
 
+const revertible_definitions = RevertibleCodeUpdate[]
+
 """ A `Trace` object represents a function call. It has fields `func, args, kwargs,
 called, value`, with `func(args...; kwargs...) = value`. `called::Vector{Trace}` of the
 immediate traceable function calls that happened during the execution of this trace.
@@ -88,8 +90,6 @@ definitions (it's a helper for `@traceable begin ... end`) """
 macro traceable_loose(expr)
     is_function_definition(expr) ? esc(:($TraceCalls.@traceable $expr)) : esc(expr)
 end
-
-const revertible_definitions = RevertibleCodeUpdate[]
 
 """ Turns `::Int=5` into `some_gensym::Int=5` """
 function handle_missing_arg(arg)
@@ -202,11 +202,11 @@ function recording_trace(fun::Function)
     res
 end    
 
-tracing(fun::Function) = with_tracing_definitions() do
+tracing(body::Function) = with_tracing_definitions() do
     # To debug, just use `with_tracing_definitions()` interactively
     recording_trace() do
         try
-            trace_data.value = @eval $fun()  # necessary to @eval because of world age
+            trace_data.value = @eval $body()  # necessary to @eval because of world age
         catch e
             trace_data.value = e
         end

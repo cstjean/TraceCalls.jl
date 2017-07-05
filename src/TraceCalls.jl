@@ -177,32 +177,58 @@ macro traceable(fdef::Expr)
     return esc(fdef)
 end
 
+function traceable_update(mod::Module)
+    update_code_revertible_fn(mod) do expr
+        is_function_definition(expr) ? tracing_code(expr) : nothing
+    end
+end
+
 """ `traceable!(module_name)` makes every[1] function in `module_name` traceable.
 
 [1] Certain conditions apply. Use `@traceable` on individual functions for
 more consistent results.
 """
 function traceable!(mod::Module)
-    rc = update_code_revertible_fn(mod) do expr
-        is_function_definition(expr) ? tracing_code(expr) : nothing
-    end
-    push!(revertible_definitions, rc)
+    push!(revertible_definitions, traceable_update(mod))
     nothing
 end
 
-trace!() = (foreach(apply_code!, revertible_definitions);
+""" Invalidate the cache if necessary """
+function check_cache!()
+    # TODO
+end
+
+# TODO: rename
+trace!() = (#foreach(apply_code!, revertible_definitions);
             foreach(apply_code!, values(traceable_definitions)))
-untrace!() = (foreach(revert_code!, revertible_definitions);
+untrace!() = (#foreach(revert_code!, revertible_definitions);
               foreach(revert_code!, values(traceable_definitions)))
 
-function with_tracing_definitions(fun::Function)
+function with_tracing_definitions(body::Function, ::Tuple{})
     trace!()
     try
-        fun()
+        body()
     finally
         untrace!()
     end
 end    
+
+with_tracing_definitions(body::Function, tup::Tuple) =
+    with_tracing_definitions(tup[1]) do
+        with_tracing_definitions(tup[2:end]) do
+            body()
+        end
+    end
+
+function with_tracing_definitions(body::Function, mod::Module)
+    upd = traceable_update(mod)
+    apply_code!(upd)
+    try
+        body()
+    finally
+        revert_code!(upd)
+    end
+end
 
 """ `recording_trace(fun::Function)` sets up a fresh Trace in trace_data, then executes
 `fun` and returns the final Trace object """
@@ -214,19 +240,26 @@ function recording_trace(fun::Function)
     res
 end    
 
-tracing(body::Function) = with_tracing_definitions() do
-    # To debug, just use `with_tracing_definitions()` interactively
-    recording_trace() do
-        try
-            trace_data.value = @eval $body()  # necessary to @eval because of world age
-        catch e
-            trace_data.value = e
+function tracing(body::Function, to_trace=())
+    check_cache!()
+    with_tracing_definitions(to_trace) do
+        # To debug, just use `with_tracing_definitions()` interactively
+        recording_trace() do
+            try
+                trace_data.value = @eval $body() # necessary to @eval because of world age
+            catch e
+                trace_data.value = e
+            end
         end
     end
 end
 
 macro trace(expr)
     :($TraceCalls.tracing(()->$(esc(expr))))
+end
+
+macro trace(to_trace, expr)
+    :($TraceCalls.tracing(()->$(esc(expr)), $(esc(to_trace))))
 end
 
 ################################################################################

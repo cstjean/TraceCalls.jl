@@ -177,14 +177,25 @@ end
 
 # There might be an issue here if we decide to macroexpand the code, since the
 # macroexpansion depends on the environment. It's probably a negligible issue.
-@memoize Dict{Tuple{Expr}, Any} traceable_update_handle_expr(expr::Expr) =
-    is_traceable(expr) ? tracing_code(expr) : nothing
+@memoize Dict{Tuple{Expr, Function}, Any} traceable_update_handle_expr(expr::Expr,
+                                                                   is_trace_fn=_->true) =
+    (is_traceable(expr) && is_trace_fn(expr)) ? tracing_code(expr) : nothing
 traceable_update_handle_expr(::Any) = nothing
 clear_handle_expr_memo!() =
     empty!(eval(TraceCalls, Symbol("##traceable_update_handle_expr_memoized_cache")))
 
+""" `get_function(mod::Module, fundef::Expr)::Function` returns the `Function` which this
+`fundef` is defining. This code works purely because we're only using it in a clobbering
+context (i.e. the Function already exists)"""
+get_function(mod::Module, fundef::Expr)::Function = eval(mod, splitdef(fundef)[:name])
+
 traceable_update(mod::Module) =
     update_code_revertible_fn(traceable_update_handle_expr, mod)
+function traceable_update(mod::Module, file::String, functions::Set{Function})
+    is_trace(expr) = get_function(mod, expr) in functions
+    update_code_revertible_fn(expr->traceable_update_handle_expr(expr, is_trace), mod,
+                              file)
+end
 
 """ `traceable!(module_name)` makes every[1] function in `module_name` traceable.
 

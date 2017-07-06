@@ -86,15 +86,17 @@ is_call_definition(fundef) = @capture(splitdef(fundef)[:name], (a_::b_) | (::b_)
 is_function_definition(expr) = 
     try
         splitdef(expr)
-        !is_call_definition(expr)
+        true
     catch e
         false
     end
 
+is_traceable(def) = is_function_definition(def) && !is_call_definition(def)
+
 """ `@traceable_loose(expr)` is like `traceable(expr)`, but doesn't error on non-function
 definitions (it's a helper for `@traceable begin ... end`) """
 macro traceable_loose(expr)
-    is_function_definition(expr) ? esc(:($TraceCalls.@traceable $expr)) : esc(expr)
+    is_traceable(expr) ? esc(:($TraceCalls.@traceable $expr)) : esc(expr)
 end
 
 """ Turns `::Int=5` into `some_gensym::Int=5` """
@@ -181,7 +183,7 @@ end
 # There might be an issue here if we decide to macroexpand the code, since the
 # macroexpansion depends on the environment. It's probably a negligible issue.
 @memoize Dict{Tuple{Expr}, Any} traceable_update_handle_expr(expr::Expr) =
-    is_function_definition(expr) ? tracing_code(expr) : nothing
+    is_traceable(expr) ? tracing_code(expr) : nothing
 traceable_update_handle_expr(::Any) = nothing
 
 traceable_update(mod::Module) =

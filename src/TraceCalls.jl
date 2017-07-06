@@ -189,6 +189,10 @@ clear_handle_expr_memo!() =
 context (i.e. the Function already exists)"""
 get_function(mod::Module, fundef::Expr)::Function = eval(mod, splitdef(fundef)[:name])
 
+""" `traceable_update(obj)::RevertibleCodeUpdate` produces the traceable code for the
+given object. """
+function traceable_update end
+
 traceable_update(mod::Module) =
     update_code_revertible_fn(traceable_update_handle_expr, mod)
 function traceable_update(mod::Module, file::String, functions::Set{Function})
@@ -196,6 +200,7 @@ function traceable_update(mod::Module, file::String, functions::Set{Function})
     update_code_revertible_fn(expr->traceable_update_handle_expr(expr, is_trace), mod,
                               file)
 end
+traceable_update(tup::Tuple) = merge(map(traceable_update, tup)...)
 
 """ `traceable!(module_name)` makes every[1] function in `module_name` traceable.
 
@@ -213,24 +218,8 @@ trace!() = (#foreach(apply_code!, revertible_definitions);
 untrace!() = (#foreach(revert_code!, revertible_definitions);
               foreach(revert_code!, values(traceable_definitions)))
 
-function with_tracing_definitions(body::Function, ::Tuple{})
-    trace!()
-    try
-        body()
-    finally
-        untrace!()
-    end
-end    
-
-with_tracing_definitions(body::Function, tup::Tuple) =
-    with_tracing_definitions(tup[1]) do
-        with_tracing_definitions(tup[2:end]) do
-            body()
-        end
-    end
-
-function with_tracing_definitions(body::Function, mod::Module)
-    upd = traceable_update(mod)
+function with_tracing_definitions(body::Function, obj)
+    upd = traceable_update(obj)
     apply_code!(upd)
     try
         body()

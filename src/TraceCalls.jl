@@ -7,6 +7,7 @@ using Base.Test: @inferred
 using ClobberingReload
 using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate
 using DataStructures: OrderedDict
+using Memoize
 
 export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
@@ -177,11 +178,12 @@ macro traceable(fdef::Expr)
     return esc(fdef)
 end
 
-function traceable_update(mod::Module)
-    update_code_revertible_fn(mod) do expr
-        is_function_definition(expr) ? tracing_code(expr) : nothing
-    end
-end
+@memoize Dict{Tuple{Expr}, Any} traceable_update_handle_expr(expr::Expr) =
+    is_function_definition(expr) ? tracing_code(expr) : nothing
+traceable_update_handle_expr(::Any) = nothing
+
+traceable_update(mod::Module) =
+    update_code_revertible_fn(traceable_update_handle_expr, mod)
 
 """ `traceable!(module_name)` makes every[1] function in `module_name` traceable.
 
@@ -191,11 +193,6 @@ more consistent results.
 function traceable!(mod::Module)
     push!(revertible_definitions, traceable_update(mod))
     nothing
-end
-
-""" Invalidate the cache if necessary """
-function check_cache!()
-    # TODO
 end
 
 # TODO: rename
@@ -241,7 +238,6 @@ function recording_trace(fun::Function)
 end    
 
 function tracing(body::Function, to_trace=())
-    check_cache!()
     with_tracing_definitions(to_trace) do
         # To debug, just use `with_tracing_definitions()` interactively
         recording_trace() do

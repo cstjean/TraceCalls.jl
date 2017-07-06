@@ -83,9 +83,12 @@ const trace_data = top_trace(top_level_dummy)
 const current_trace = fill(trace_data)
 
 is_call_definition(fundef) = @capture(splitdef(fundef)[:name], (a_::b_) | (::b_))
+is_function_definition2(expr::Expr) = longdef1(expr).head == :function
+is_function_definition2(::Any) = false
 is_function_definition(expr) = 
     try
         splitdef(expr)
+        @assert(is_function_definition2(expr))
         true
     catch e
         false

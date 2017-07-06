@@ -11,7 +11,7 @@ using Memoize
 
 export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
-    compare_past_trace, traceable!, filter_func, call_macro
+    compare_past_trace, traceable!, filter_func, apply_macro
 
 """ When `TraceCalls.active[]` is `false`, `@traceable ...` is an identity macro
 (it doesn't modify the function at all) """
@@ -59,21 +59,21 @@ Base.length(tr::Trace) = length(tr.called)
 # Base.next(tr::Trace, i::Int) = (tr[i], i+1)
 # Base.done(tr::Trace, i::Int) = i == length(tr)+1
 (tr::Trace)() = tr.func(tr.args...; tr.kwargs...)
-call_macro(mac::Symbol, tr::Trace, mod::Module=Main) =
+apply_macro(mac::Symbol, tr::Trace, mod::Module=Main) =
     eval(mod, Expr(:macrocall, mac, (isempty(tr.kwargs) ?
                                      # Needs special casing because @inferred chokes
                                      # on kwargs-less funcalls otherwise.
                                      :($(tr.func)($(tr.args...))) :
                                      :($(tr.func)($(tr.args...); $(tr.kwargs))))))
-call_macro(mac::Expr, tr::Trace, mod::Module=Main) =
-    (mac.head==:macrocall ? call_macro(only(mac.args), tr, mod) :
+apply_macro(mac::Expr, tr::Trace, mod::Module=Main) =
+    (mac.head==:macrocall ? apply_macro(only(mac.args), tr, mod) :
      error("Unable to call macro $mac"))
 
 """ `map(f, tr::Trace)` recursively applies the function f to each `Trace` in `tr`,
 and stores the result in `Trace.value` """
 Base.map(f, tr::Trace) = Trace(tr.func, tr.args, tr.kwargs,
                                [map(f, c) for c in tr.called], f(tr))
-Base.map(mac::Union{Symbol, Expr}, tr::Trace) = map(sub->call_macro(mac, sub), tr)
+Base.map(mac::Union{Symbol, Expr}, tr::Trace) = map(sub->apply_macro(mac, sub), tr)
 
 top_level_dummy() = error("top_level_dummy is not callable")
 
@@ -343,7 +343,7 @@ limit_depth(tr::Trace, n::Int) =
 
 function is_inferred(tr::Trace)
     try
-        call_macro(:@inferred, tr, Base.Test)
+        apply_macro(:@inferred, tr, Base.Test)
         return true
     catch e
         if e isa ErrorException && contains(e.msg, "does not match inferred return type")

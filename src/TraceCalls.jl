@@ -180,6 +180,8 @@ end
 @memoize Dict{Tuple{Expr}, Any} traceable_update_handle_expr(expr::Expr) =
     is_traceable(expr) ? tracing_code(expr) : nothing
 traceable_update_handle_expr(::Any) = nothing
+clear_handle_expr_memo!() =
+    empty!(eval(TraceCalls, Symbol("##traceable_update_handle_expr_memoized_cache")))
 
 traceable_update(mod::Module) =
     update_code_revertible_fn(traceable_update_handle_expr, mod)

@@ -195,11 +195,14 @@ function traceable_update end
 
 traceable_update(mod::Module) =
     update_code_revertible_fn(traceable_update_handle_expr, mod)
-function traceable_update(mod::Module, file::String, functions::Set{Function})
-    is_trace(expr) = get_function(mod, expr) in functions
+function traceable_update(mod::Module, file::String, fn_to_trace)
+    is_trace(fdef) = get_function(mod, fdef) == fn_to_trace
     update_code_revertible_fn(expr->traceable_update_handle_expr(expr, is_trace), mod,
                               file)
 end
+traceable_update(f::Function) =
+    merge((traceable_update(mod, string(file), f) 
+           for (mod, file) in Set((m.module, m.file) for m in methods(f).ms))...)
 traceable_update(tup::Tuple) = merge(map(traceable_update, tup)...)
 
 """ `traceable!(module_name)` makes every[1] function in `module_name` traceable.

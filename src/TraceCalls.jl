@@ -178,6 +178,8 @@ macro traceable(fdef::Expr)
     return esc(fdef)
 end
 
+# There might be an issue here if we decide to macroexpand the code, since the
+# macroexpansion depends on the environment. It's probably a negligible issue.
 @memoize Dict{Tuple{Expr}, Any} traceable_update_handle_expr(expr::Expr) =
     is_function_definition(expr) ? tracing_code(expr) : nothing
 traceable_update_handle_expr(::Any) = nothing

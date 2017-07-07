@@ -212,6 +212,7 @@ traceable_update(f::Function) =
     merge((traceable_update(mod, string(file), f) 
            for (mod, file) in Set((m.module, m.file) for m in methods(f).ms))...)
 traceable_update(tup::Tuple) = merge(map(traceable_update, tup)...)
+traceable_update(tup::Tuple{}) = RevertibleCodeUpdate(CodeUpdate([]), CodeUpdate([]))
 
 """ `traceable!(module_name)` makes every[1] function in `module_name` traceable.
 
@@ -231,8 +232,8 @@ untrace!() = (#foreach(revert_code!, revertible_definitions);
 
 function with_tracing_definitions(body::Function, obj)
     upd = traceable_update(obj)
-    apply_code!(upd)
     try
+        apply_code!(upd)
         body()
     finally
         revert_code!(upd)

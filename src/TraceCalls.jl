@@ -2,10 +2,10 @@ __precompile__()
 module TraceCalls
 
 using MacroTools
-using MacroTools: combinedef, combinearg, longdef1
 using Base.Test: @inferred
 using ClobberingReload
 using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate
+using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
 using DataStructures: OrderedDict
 using Memoize
 using Base: url
@@ -202,11 +202,11 @@ given object. """
 function traceable_update end
 
 traceable_update(mod::Module) =
-    update_code_revertible_fn(traceable_update_handle_expr, mod)
+    update_code_revertible(traceable_update_handle_expr, mod)
 function traceable_update(mod::Module, file::String, fn_to_trace)
     is_trace(fdef) = get_function(mod, fdef) == fn_to_trace
-    update_code_revertible_fn(expr->traceable_update_handle_expr(expr, is_trace), mod,
-                              file)
+    update_code_revertible(expr->traceable_update_handle_expr(expr, is_trace), mod,
+                           file)
 end
 traceable_update(f::Function) =
     merge((traceable_update(mod, string(file), f) 

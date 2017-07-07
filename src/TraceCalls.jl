@@ -108,7 +108,8 @@ function handle_missing_arg(arg)
     combinearg(arg_name === nothing ? gensym() : arg_name, arg_type, is_splat, default)
 end
 
-function tracing_code(fdef::Expr)::Expr # returns the tracing function definitions
+"""  Takes a function definition, and returns a traceing version of it. """
+function tracing_code(fdef::Expr)::Expr
     arg_name(arg) = splitarg(arg)[1]
     function typed_arg(arg)
         global uu = fdef
@@ -183,7 +184,7 @@ macro traceable(fdef::Expr)
     return esc(fdef)
 end
 
-# There might be an issue here if we decide to macroexpand the code, since the
+# There might be an issue with the memo if we decide to macroexpand the code, since the
 # macroexpansion depends on the environment. It's probably a negligible issue.
 @memoize Dict{Tuple{Expr, Function}, Any} traceable_update_handle_expr(expr::Expr,
                                                                    is_trace_fn=_->true) =
@@ -203,14 +204,17 @@ function traceable_update end
 
 traceable_update(mod::Module) =
     update_code_revertible(traceable_update_handle_expr, mod)
-function traceable_update(mod::Module, file::String, fn_to_trace)
-    is_trace(fdef) = get_function(mod, fdef) == fn_to_trace
-    update_code_revertible(expr->traceable_update_handle_expr(expr, is_trace), mod,
+
+function traceable_update(mod::Module, file::String, fn_to_trace::Function)
+    should_trace(fdef) = get_function(mod, fdef) == fn_to_trace
+    update_code_revertible(expr->traceable_update_handle_expr(expr, should_trace), mod,
                            file)
 end
+
 traceable_update(f::Function) =
     merge((traceable_update(mod, string(file), f) 
            for (mod, file) in Set((m.module, m.file) for m in methods(f).ms))...)
+
 traceable_update(tup::Tuple) = merge(map(traceable_update, tup)...)
 EmptyRevertibleCodeUpdate() = RevertibleCodeUpdate(CodeUpdate([]), CodeUpdate([]))
 traceable_update(tup::Tuple{}) = EmptyRevertibleCodeUpdate()

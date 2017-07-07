@@ -193,8 +193,7 @@ clear_handle_expr_memo!() =
     empty!(eval(TraceCalls, Symbol("##traceable_update_handle_expr_memoized_cache")))
 
 """ `get_function(mod::Module, fundef::Expr)::Function` returns the `Function` which this
-`fundef` is defining. This code works purely because we're only using it in a clobbering
-context (i.e. the Function already exists)"""
+`fundef` is defining. This code works only when the Function already exists. """
 get_function(mod::Module, fundef::Expr)::Function = eval(mod, splitdef(fundef)[:name])
 
 """ `traceable_update(obj)::RevertibleCodeUpdate` produces the traceable code for the
@@ -204,16 +203,17 @@ function traceable_update end
 traceable_update(mod::Module) =
     update_code_revertible(traceable_update_handle_expr, mod)
 
-function traceable_update(mod::Module, file::String, fn_to_trace::Function)
+function ClobberingReload.update_code_revertible(new_code_fn::Function, mod::Module,
+                                                 file::String, fn_to_change::Function)
     update_code_revertible(mod, file) do expr
-        if is_function_definition(expr) && get_function(mod, expr) == fn_to_trace
-            traceable_update_handle_expr(expr)
+        if is_function_definition(expr) && get_function(mod, expr) == fn_to_change
+            new_code_fn(expr)
         else nothing end
     end
 end
 
 traceable_update(f::Function) =
-    merge((traceable_update(mod, string(file), f) 
+    merge((update_code_revertible(traceable_update_handle_expr, mod, string(file), f) 
            for (mod, file) in Set((m.module, m.file) for m in methods(f).ms))...)
 
 traceable_update(tup::Tuple) = merge(map(traceable_update, tup)...)

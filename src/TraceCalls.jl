@@ -212,9 +212,12 @@ function ClobberingReload.update_code_revertible(new_code_fn::Function, mod::Mod
     end
 end
 
-traceable_update(f::Function) =
-    merge((update_code_revertible(traceable_update_handle_expr, mod, string(file), f) 
-           for (mod, file) in Set((m.module, m.file) for m in methods(f).ms))...)
+ClobberingReload.update_code_revertible(new_code_fn::Function, fn_to_change::Function) =
+    merge((update_code_revertible(new_code_fn, mod, string(file), fn_to_change) 
+           for (mod, file) in Set((m.module, m.file)
+                                  for m in methods(fn_to_change).ms))...)
+
+traceable_update(f::Function) = update_code_revertible(traceable_update_handle_expr, f)
 
 traceable_update(tup::Tuple) = merge(map(traceable_update, tup)...)
 EmptyRevertibleCodeUpdate() = RevertibleCodeUpdate(CodeUpdate([]), CodeUpdate([]))

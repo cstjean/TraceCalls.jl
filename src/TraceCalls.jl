@@ -8,6 +8,7 @@ using ClobberingReload
 using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate
 using DataStructures: OrderedDict
 using Memoize
+using Base: url
 
 export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
@@ -22,6 +23,12 @@ const traceable_definitions = OrderedDict()  # We use an OrderedDict because in 
                                              # accidentally store the same definition
                                              # twice, at least the latter one takes
                                              # precedence.
+
+function only(collection)
+    @assert length(collection)==1 "only: `collection` was expected to contain one element; contains $(length(collection))"
+    return first(collection)
+end
+only(collection::Base.Generator) = only(collect(collection))
 
 """ A `Trace` object represents a function call. It has fields `func, args, kwargs,
 called, value`, with `func(args...; kwargs...) = value`. `called::Vector{Trace}` of the
@@ -53,6 +60,7 @@ Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int) = tr.called[i]
 Base.getindex(tr::Trace, i::Int, j::Int, args...) = tr.called[i][j, args...]
 Base.length(tr::Trace) = length(tr.called)
+Base.url(tr::Trace) = Base.url(TraceCalls.apply_macro(:@which, tr))
 # We've disabled iteration because it doesn't align with our desired `Base.map`'s
 # behaviour, and it's kinda useless anyway.
 # Base.start(tr::Trace) = 1
@@ -304,9 +312,13 @@ kwargs_html(kwargs::Tuple{}) = ""
 sub_called_html(tr::Trace) =
      """<ul>""" * mapreduce(x->"<li>"*trace_html(x)*"</li>", *, "", tr.called) * "</ul>"
 
+url_func_name(tr::Trace) =
+    (url(tr) == "" ? string(tr.func) :
+     """<a href="$(url(tr))" target="_blank" style="color: black; text-decoration: none; border-bottom: 1px #C3C3C3 dotted">$(tr.func)</a>""")
+
 call_html(::Any, tr::Trace) =
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    "<pre>$(tr.func)($(args_html(tr.args))$(kwargs_html(tr.kwargs))) => $(return_val_html(tr.value))</pre>"
+    "<pre>$(url_func_name(tr))($(args_html(tr.args))$(kwargs_html(tr.kwargs))) => $(return_val_html(tr.value))</pre>"
 
 trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
 

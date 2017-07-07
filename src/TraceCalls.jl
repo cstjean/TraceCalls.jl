@@ -186,9 +186,8 @@ end
 
 # There might be an issue with the memo if we decide to macroexpand the code, since the
 # macroexpansion depends on the environment. It's probably a negligible issue.
-@memoize Dict{Tuple{Expr, Function}, Any} traceable_update_handle_expr(expr::Expr,
-                                                                   is_trace_fn=_->true) =
-    (is_traceable(expr) && is_trace_fn(expr)) ? tracing_code(expr) : nothing
+@memoize Dict{Tuple{Expr}, Any} traceable_update_handle_expr(expr::Expr) =
+    is_traceable(expr) ? tracing_code(expr) : nothing
 traceable_update_handle_expr(::Any) = nothing
 clear_handle_expr_memo!() =
     empty!(eval(TraceCalls, Symbol("##traceable_update_handle_expr_memoized_cache")))
@@ -206,9 +205,11 @@ traceable_update(mod::Module) =
     update_code_revertible(traceable_update_handle_expr, mod)
 
 function traceable_update(mod::Module, file::String, fn_to_trace::Function)
-    should_trace(fdef) = get_function(mod, fdef) == fn_to_trace
-    update_code_revertible(expr->traceable_update_handle_expr(expr, should_trace), mod,
-                           file)
+    update_code_revertible(mod, file) do expr
+        if is_function_definition(expr) && get_function(mod, expr) == fn_to_trace
+            traceable_update_handle_expr(expr)
+        else nothing end
+    end
 end
 
 traceable_update(f::Function) =

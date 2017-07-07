@@ -226,11 +226,8 @@ traceable_macro_update() = merge(EmptyRevertibleCodeUpdate(),
 
 function with_tracing_definitions(body::Function, obj)
     upd = merge(traceable_update(obj), traceable_macro_update())
-    try
-        apply_code!(upd)
+    upd() do
         body()
-    finally
-        revert_code!(upd)
     end
 end
 

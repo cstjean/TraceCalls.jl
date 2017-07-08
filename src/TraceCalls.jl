@@ -5,7 +5,7 @@ using MacroTools
 using Base.Test: @inferred
 using ClobberingReload
 using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate,
-    is_function_definition, get_function
+    is_function_definition, get_function, is_call_definition, EmptyRevertibleCodeUpdate
 using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
 using DataStructures: OrderedDict
 using Memoize
@@ -29,7 +29,6 @@ function only(collection)
     @assert length(collection)==1 "only: `collection` was expected to contain one element; contains $(length(collection))"
     return first(collection)
 end
-only(collection::Base.Generator) = only(collect(collection))
 
 """ A `Trace` object represents a function call. It has fields `func, args, kwargs,
 called, value`, with `func(args...; kwargs...) = value`. `called::Vector{Trace}` of the
@@ -90,8 +89,6 @@ const is_tracing = fill(false)
 top_trace(fun) = Trace(fun, (), (), [], nothing)
 const trace_data = top_trace(top_level_dummy)
 const current_trace = fill(trace_data)
-
-is_call_definition(fundef) = @capture(splitdef(fundef)[:name], (a_::b_) | (::b_))
 
 is_traceable(def) = is_function_definition(def) && !is_call_definition(def)
 
@@ -195,13 +192,10 @@ clear_handle_expr_memo!() =
 given object. """
 function traceable_update end
 
-traceable_update(mod::Module) =
-    update_code_revertible(traceable_update_handle_expr, mod)
-
+traceable_update(mod::Module) = update_code_revertible(traceable_update_handle_expr, mod)
 traceable_update(f::Function) = update_code_revertible(traceable_update_handle_expr, f)
 
 traceable_update(tup::Tuple) = merge(map(traceable_update, tup)...)
-EmptyRevertibleCodeUpdate() = RevertibleCodeUpdate(CodeUpdate([]), CodeUpdate([]))
 traceable_update(tup::Tuple{}) = EmptyRevertibleCodeUpdate()
 
 """ `traceable!(module_name)` makes every[1] function in `module_name` traceable.
@@ -246,7 +240,7 @@ function tracing(body::Function, to_trace=())
         # To debug, just use `with_tracing_definitions()` interactively
         recording_trace() do
             try
-                trace_data.value = @eval $body() # necessary to @eval because of world age
+                trace_data.value = body()
             catch e
                 trace_data.value = e
             end

@@ -61,7 +61,9 @@ Base.getindex(tr::Trace, i::Int) = tr.called[i]
 Base.getindex(tr::Trace, i::Int, j::Int, args...) = tr.called[i][j, args...]
 Base.length(tr::Trace) = length(tr.called)
 Base.url(tr::Trace) = Base.url(TraceCalls.apply_macro(:@which, tr))
-# We've disabled iteration because it doesn't align with our desired `Base.map`'s
+Base.less(tr::Trace) = apply_macro(:@less, tr)
+Base.edit(tr::Trace) = apply_macro(:@edit, tr)
+# I've disabled iteration because it doesn't align with our desired `Base.map`'s
 # behaviour, and it's kinda useless anyway.
 # Base.start(tr::Trace) = 1
 # Base.next(tr::Trace, i::Int) = (tr[i], i+1)

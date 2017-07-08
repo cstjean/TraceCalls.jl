@@ -13,7 +13,7 @@ using Base: url
 
 export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
-    compare_past_trace, traceable!, filter_func, apply_macro
+    compare_past_trace, filter_func, apply_macro
 
 """ When `TraceCalls.active[]` is `false`, `@traceable ...` is an identity macro
 (it doesn't modify the function at all) """
@@ -204,21 +204,17 @@ traceable_update(tup::Tuple{}) = EmptyRevertibleCodeUpdate()
 more consistent results.
 """
 function traceable!(mod::Module)
-    push!(revertible_definitions, traceable_update(mod))
-    nothing
+    fixme()
 end
-
-# TODO: rename
-trace!() = (#foreach(apply_code!, revertible_definitions);
-            foreach(apply_code!, values(traceable_definitions)))
-untrace!() = (#foreach(revert_code!, revertible_definitions);
-              foreach(revert_code!, values(traceable_definitions)))
 
 """ The `RevertibleCodeUpdate` for the code from the `@traceable` macros. """
 traceable_macro_update() = merge(EmptyRevertibleCodeUpdate(),
                                  values(traceable_definitions)...)
 
 function with_tracing_definitions(body::Function, obj)
+    if obj !== () && VERSION < v"0.6.0"
+        warn("Tracing functions and modules explicitly does not work so well in Julia 0.5. Upgrade to 0.6, or use `@traceable` for better results")
+    end
     upd = merge(traceable_update(obj), traceable_macro_update())
     upd() do
         body()

@@ -4,7 +4,7 @@ module TraceCalls
 using MacroTools
 using Base.Test: @inferred
 using ClobberingReload
-using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate,
+using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate, only,
     is_function_definition, get_function, is_call_definition, EmptyRevertibleCodeUpdate
 using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
 using DataStructures: OrderedDict
@@ -25,10 +25,21 @@ const traceable_definitions = OrderedDict()  # We use an OrderedDict because in 
                                              # twice, at least the latter one takes
                                              # precedence.
 
-function only(collection)
-    @assert length(collection)==1 "only: `collection` was expected to contain one element; contains $(length(collection))"
-    return first(collection)
+################################################################################
+# Utils
+
+macro ignore_errors(error_rval, expr)
+    quote
+        try
+            $(esc(expr))
+        catch e
+            $(esc(error_rval))
+        end
+    end
 end
+
+
+################################################################################
 
 """ A `Trace` object represents a function call. It has fields `func, args, kwargs,
 called, value`, with `func(args...; kwargs...) = value`. `called::Vector{Trace}` of the
@@ -54,13 +65,15 @@ function Base.copy!(dest::Trace, src::Trace)
     dest.value = src.value
 end
 
+tree_size(tr::Trace) = 1 + mapreduce(tree_size, +, 0, tr.called)
 Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.value)
 struct NotReturned end   # special flag value
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int) = tr.called[i]
 Base.getindex(tr::Trace, i::Int, j::Int, args...) = tr.called[i][j, args...]
 Base.length(tr::Trace) = length(tr.called)
-Base.url(tr::Trace) = Base.url(TraceCalls.apply_macro(:@which, tr))
+Base.url(tr::Trace) = @ignore_errors "" Base.url(which(tr))
+Base.which(tr::Trace) = apply_macro(:@which, tr)
 Base.less(tr::Trace) = apply_macro(:@less, tr)
 Base.edit(tr::Trace) = apply_macro(:@edit, tr)
 # I've disabled iteration because it doesn't align with our desired `Base.map`'s
@@ -70,11 +83,12 @@ Base.edit(tr::Trace) = apply_macro(:@edit, tr)
 # Base.done(tr::Trace, i::Int) = i == length(tr)+1
 (tr::Trace)() = tr.func(tr.args...; tr.kwargs...)
 apply_macro(mac::Symbol, tr::Trace, mod::Module=Main) =
-    eval(mod, Expr(:macrocall, mac, (isempty(tr.kwargs) ?
-                                     # Needs special casing because @inferred chokes
-                                     # on kwargs-less funcalls otherwise.
-                                     :($(tr.func)($(tr.args...))) :
-                                     :($(tr.func)($(tr.args...); $(tr.kwargs))))))
+    eval(mod, Expr(:macrocall, mac,
+                   (isempty(tr.kwargs) ?
+                    # Needs special casing because @inferred chokes on kwargs-less
+                    # funcalls otherwise.
+                    :($(tr.func)($(map(QuoteNode, tr.args)...))) :
+                    :($(tr.func)($(map(QuoteNode, tr.args)...); $(tr.kwargs...))))))
 apply_macro(mac::Expr, tr::Trace, mod::Module=Main) =
     (mac.head==:macrocall ? apply_macro(only(mac.args), tr, mod) :
      error("Unable to call macro $mac"))
@@ -198,20 +212,11 @@ custom_when_missing(x) = warn(x)
 custom_when_missing(fail::ClobberingReload.UpdateInteractiveFailure) =
     warn("Use `@traceable` to trace methods defined interactively.")
 traceable_update(mod::Module) = update_code_revertible(traceable_update_handle_expr, mod)
-traceable_update(f::Function) =
+traceable_update(f::Union{Function, Type}) =
     update_code_revertible(traceable_update_handle_expr, f, when_missing=custom_when_missing)
 
 traceable_update(tup::Tuple) = merge(map(traceable_update, tup)...)
 traceable_update(tup::Tuple{}) = EmptyRevertibleCodeUpdate()
-
-""" `traceable!(module_name)` makes every[1] function in `module_name` traceable.
-
-[1] Certain conditions apply. Use `@traceable` on individual functions for
-more consistent results.
-"""
-function traceable!(mod::Module)
-    fixme()
-end
 
 """ The `RevertibleCodeUpdate` for the code from the `@traceable` macros. """
 traceable_macro_update() = merge(EmptyRevertibleCodeUpdate(),
@@ -278,7 +283,7 @@ return_val_html(x::Exception) = val_html(FontColor("red", x))
 """ `TraceCalls.val_html(x)` is the HTML used by `TraceCalls` to display each value
 (arguments and return values). Customize it by overloading it. Defaults to `string(x)`.
 """
-val_html(x) = string(x)
+val_html(x) = repr(x)
 val_html(x::FontColor) = """<font color=$(x.color)>""" * val_html(x.content) * """</font>"""
 val_html(x::Bold) = "<b>" * val_html(x.content) * "</b>"
 

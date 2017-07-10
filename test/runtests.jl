@@ -18,3 +18,37 @@ map(:@elapsed, @trace(bar(; x=:y)))
 map(:@elapsed, @trace(bar2(:y)))
 
 @test tree_size(@trace Base.isnull get(Nullable(10))) == 2
+
+################################################################################
+# Testing with popular packages
+import ClobberingReload
+root_of(mod::Module) =
+    joinpath(dirname(ClobberingReload.module_definition_file(string(mod))), "..")
+
+
+using JuMP
+path = joinpath(root_of(JuMP), "examples", "basic.jl")
+@test tree_size(@trace JuMP include(path)) > 10
+
+
+using Gadfly
+# Most of the complexity in Gadfly comes from Base.show(::Gadfly.PlotObject, ...), and
+# that's not tested here.
+@test tree_size(@trace Gadfly plot(x=rand(10), y=rand(10))) > 5
+
+
+# Knet should be tested again either once they've updated to 0.6, or once 
+# https://github.com/JuliaLang/julia/issues/22729 is fixed.
+# using KNet
+# @trace Knet include(joinpath(root_of(Knet), "examples", "linreg.jl"))
+
+
+# We can use DifferentialEquations.jl, but that's a huge download and install
+# Example from http://docs.juliadiffeq.org/stable/tutorials/ode_example.html
+using OrdinaryDiffEq, DiffEqBase
+DiffEqBase.interp_summary(::OrdinaryDiffEq.InterpolationData) = "42"
+f(t,u) = 1.01*u
+u0=1/2
+tspan = (0.0,1.0)
+prob = ODEProblem(f,u0,tspan)
+@trace sol = OrdinaryDiffEq.solve(prob,Tsit5(),reltol=1e-8,abstol=1e-8)

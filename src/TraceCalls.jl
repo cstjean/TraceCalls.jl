@@ -123,11 +123,13 @@ end
 """  Takes a function definition, and returns a traceing version of it. """
 function tracing_code(fdef::Expr)::Expr
     arg_name(arg) = splitarg(arg)[1]
+    is_splat(arg) = splitarg(arg)[3]
+    arg_name_splat(arg) = is_splat(arg) ? Expr(:..., arg_name(arg)) : arg_name(arg)
     function typed_arg(arg)
         global uu = fdef
         global vv = arg
-        name, arg_type, is_splat = splitarg(arg)
-        if is_splat arg_type = Any end
+        name, arg_type = splitarg(arg)
+        if is_splat(arg) arg_type = Any end
         return :($name::$arg_type)
     end
     
@@ -147,7 +149,7 @@ function tracing_code(fdef::Expr)::Expr
     updated_fun_di[:body] = quote
         $prev_trace = $TraceCalls.current_trace[]
         $new_trace =
-            $TraceCalls.Trace($fname, ($(map(arg_name, di[:args])...),),
+            $TraceCalls.Trace($fname, ($(map(arg_name_splat, di[:args])...),),
                               ($([:($(Expr(:quote, arg_name(kwa)))=>$(arg_name(kwa)))
                                   for kwa in di[:kwargs]]...),),
                               [], $TraceCalls.NotReturned())

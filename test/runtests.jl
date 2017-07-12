@@ -23,6 +23,12 @@ TraceCalls.call_html(::typeof(f), tr::Trace) = "f was called"
 map(:@elapsed, @trace(bar(; x=:y)))
 map(:@elapsed, @trace(bar2(:y)))
 
+# splatting
+@traceable splat(args::Int...)::Int = sum(args)
+t = @trace splat(1,2,3)
+@test t[1]() == 6
+@test t[1].args == (1,2,3)
+
 include("incl.jl")
 @test ctree_size(@trace "incl.jl" couch()) == 2
 

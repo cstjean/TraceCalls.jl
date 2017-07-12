@@ -11,7 +11,7 @@ using DataStructures: OrderedDict
 using Memoize
 using Base: url
 
-export @traceable, @trace, Trace, limit_depth, FontColor, Bold,
+export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro
 
@@ -337,11 +337,13 @@ filter_func(func::Function, tr::Trace) = filter_func([func], tr)
 """ `collect(tr::Trace)` returns a vector of all `Trace` objects within `tr`. """
 Base.collect(tr::Trace) = Trace[tr; mapreduce(collect, vcat, [], tr)]
 
-""" `limit_depth(::Trace, n::Int)` prunes the Trace-tree to a depth of `n` (convenient
-to first explore a trace at a high-level) """
-limit_depth(tr::Trace, n::Int) =
+""" `prune(tr::Trace, max_depth::Int, max_length::Int=1000000000)` prunes the Trace-tree
+maximum tree depth, and maximum length (number of branches in each node). 
+(convenient to first explore a trace at a high-level) """
+prune(tr::Trace, max_depth::Int, max_length::Int=1000000000) =
     Trace(tr.func, tr.args, tr.kwargs,
-          [limit_depth(sub_tr, n-1) for sub_tr in tr.called if n > 0],
+          [prune(sub_tr, max_depth-1, max_length)
+           for sub_tr in tr.called[1:min(length(tr), max_length)] if max_depth > 0],
           tr.value)
 
 function is_inferred(tr::Trace)

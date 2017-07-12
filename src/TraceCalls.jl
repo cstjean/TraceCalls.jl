@@ -48,7 +48,7 @@ immediate traceable function calls that happened during the execution of this tr
 There are no accessors for `Trace`; please reference its fields directly.
 For instance, `filter(tr->isa(tr.args[1], Int), trace)` will select all calls whose
 first argument is an `Int`. """
-mutable struct Trace
+type Trace
     func             # the function/callable called
     args::Tuple      # the positional arguments
     kwargs::Tuple    # the keyword arguments
@@ -67,7 +67,7 @@ end
 
 tree_size(tr::Trace) = 1 + mapreduce(tree_size, +, 0, tr.called)
 Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.value)
-struct NotReturned end   # special flag value
+immutable NotReturned end   # special flag value
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int) = tr.called[i]
 Base.getindex(tr::Trace, i::Int, j::Int, args...) = tr.called[i][j, args...]
@@ -272,11 +272,11 @@ const tab_def = """<style type="text/css">
 -->
 </style>"""
 
-struct FontColor
+immutable FontColor
     color
     content
 end
-struct Bold
+immutable Bold
     content
 end
 return_val_html(x) =  val_html(Bold(FontColor("green", x)))
@@ -396,7 +396,7 @@ Base.time(tr::Trace, timing_macro=:@elapsed) =
 
 ################################################################################
 
-struct IsEqual
+immutable IsEqual
     a
     b
 end

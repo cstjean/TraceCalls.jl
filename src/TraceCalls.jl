@@ -412,7 +412,7 @@ val_html(isd::IsEqual) =
 
 """ `compare_past_trace(old_trace::Trace; filter_out_equal=true))` reruns every subtrace
 in `old_trace`, and shows in red where the new result differs from the old.
-If `filter_out_equal==true`, only show the equal """
+If `filter_out_equal==true`, only show the non-equal results. """
 function compare_past_trace(old_trace::Trace; filter_out_equal=true)
     tr2 = map(old_trace) do sub_tr
         IsEqual(sub_tr.value, sub_tr()) end

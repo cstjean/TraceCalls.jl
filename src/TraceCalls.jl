@@ -137,7 +137,7 @@ function tracing_code(fdef::Expr)::Expr
     fname = di[:name]
 
     do_body_di = copy(di)
-    do_body_di[:name] = do_body = fname isa Expr ? gensym() : gensym(fname)
+    do_body_di[:name] = do_body = isa(fname, Expr) ? gensym() : gensym(fname)
     do_body_di[:args] = map(typed_arg, [di[:args]..., di[:kwargs]...])
     do_body_di[:kwargs] = []
 
@@ -352,7 +352,7 @@ function is_inferred(tr::Trace)
         apply_macro(:@inferred, tr, Base.Test)
         return true
     catch e
-        if e isa ErrorException && contains(e.msg, "does not match inferred return type")
+        if isa(e, ErrorException)&&contains(e.msg, "does not match inferred return type")
             return false
         else
             rethrow()

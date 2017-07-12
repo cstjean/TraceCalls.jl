@@ -1,0 +1,7 @@
+JuMP
+Gadfly
+DataStructures
+PyCall
+Optim
+OrdinaryDiffEq
+DiffEqBase

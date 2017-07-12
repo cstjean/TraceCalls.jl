@@ -211,7 +211,8 @@ function traceable_update end
 custom_when_missing(x) = warn(x)
 custom_when_missing(fail::ClobberingReload.UpdateInteractiveFailure) =
     warn("Use `@traceable` to trace methods defined interactively.")
-traceable_update(mod::Module) = update_code_revertible(traceable_update_handle_expr, mod)
+traceable_update(obj::Union{Module, String}) =
+    update_code_revertible(traceable_update_handle_expr, obj)
 traceable_update(f::Union{Function, Type}) =
     update_code_revertible(traceable_update_handle_expr, f, when_missing=custom_when_missing)
 

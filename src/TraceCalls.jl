@@ -140,25 +140,25 @@ function tracing_code(fdef::Expr)::Expr
 
     do_body_di = copy(di)
     do_body_di[:name] = do_body = isa(fname, Expr) ? gensym() : gensym(fname)
-    do_body_di[:args] = map(typed_arg, [di[:args]..., di[:kwargs]...])
-    do_body_di[:kwargs] = []
 
     updated_fun_di = copy(di)
     @gensym new_trace prev_trace e res
-    all_args_symbol = map(arg_name, [di[:args]..., di[:kwargs]...])
+    passed_args = map(arg_name_splat, di[:args])
+    passed_kwargs = [is_splat(kwa) ?
+                     arg_name_splat(kwa) :
+                     :(($(Expr(:quote, arg_name(kwa))), $(arg_name(kwa))))
+                     for kwa in di[:kwargs]]
     updated_fun_di[:body] = quote
         $prev_trace = $TraceCalls.current_trace[]
         $new_trace =
-            $TraceCalls.Trace($fname, ($(map(arg_name_splat, di[:args])...),),
-                              ($([is_splat(kwa) ?
-                                  arg_name_splat(kwa) :
-                                  :(($(Expr(:quote, arg_name(kwa))), $(arg_name(kwa))))
-                                  for kwa in di[:kwargs]]...),),
+            $TraceCalls.Trace($fname, ($(passed_args...),),
+                              ($(passed_kwargs...),),
                               [], $TraceCalls.NotReturned())
         $TraceCalls.current_trace[] = $new_trace
         push!($prev_trace, $new_trace)
         try
-            $res = $do_body($(all_args_symbol...))
+            $res = $do_body($(map(arg_name_splat, di[:args])...);
+                            $(passed_kwargs...))
             $new_trace.value = $res
             return $res
         catch $e

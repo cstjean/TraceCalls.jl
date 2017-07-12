@@ -4,7 +4,7 @@ using Base.Test
 
 function ctree_size(tr::Trace)
     # tree_size, but first make sure that it wasn't an error
-    @test !isa(tr.value, Exception)
+    @assert !isa(tr.value, Exception)
     tree_size(tr)
 end
 
@@ -65,7 +65,8 @@ using Gadfly
 
 using DataStructures
 @test ctree_size(@trace DataStructures binary_minheap([2,11, 14])) > 3
-
+# This looks innocent, but it helped us find a problem with typed slurped args
+@test ctree_size(@trace DataStructures.OrderedDict OrderedDict(1=>2, 3=>4)) >= 1
 
 using PyCall
 @test ctree_size(@trace PyCall pyimport(:math)[:pi]) > 5

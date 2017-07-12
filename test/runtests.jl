@@ -29,6 +29,11 @@ t = @trace splat(1,2,3)
 @test t[1]() == 6
 @test t[1].args == (1,2,3)
 
+# kwarg splatting
+@traceable kwsplat(;kwargs...) = map(first, kwargs)
+t = @trace kwsplat(x=1,y=2,z=3)
+@test t[1]() == [:x, :y, :z]
+
 include("incl.jl")
 @test ctree_size(@trace "incl.jl" couch()) == 2
 

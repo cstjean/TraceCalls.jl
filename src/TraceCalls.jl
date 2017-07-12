@@ -150,7 +150,9 @@ function tracing_code(fdef::Expr)::Expr
         $prev_trace = $TraceCalls.current_trace[]
         $new_trace =
             $TraceCalls.Trace($fname, ($(map(arg_name_splat, di[:args])...),),
-                              ($([:($(Expr(:quote, arg_name(kwa)))=>$(arg_name(kwa)))
+                              ($([is_splat(kwa) ?
+                                  arg_name_splat(kwa) :
+                                  :(($(Expr(:quote, arg_name(kwa))), $(arg_name(kwa))))
                                   for kwa in di[:kwargs]]...),),
                               [], $TraceCalls.NotReturned())
         $TraceCalls.current_trace[] = $new_trace
@@ -298,7 +300,7 @@ function Base.show(io::IO, ::MIME"text/html", tr::Trace)
     write(io, "</ul>")
 end
 
-kwa_eql(kwarg::Pair) = "$(first(kwarg))=$(val_html(last(kwarg)))"
+kwa_eql(kwarg::Tuple) = "$(first(kwarg))=$(val_html(last(kwarg)))"
 kwargs_html(kwargs) = "; " * join(map(kwa_eql, kwargs), ", ")
 args_html(kwargs) = join(map(val_html, kwargs), ", ")
 kwargs_html(kwargs::Tuple{}) = ""

@@ -224,9 +224,6 @@ traceable_macro_update() = merge(EmptyRevertibleCodeUpdate(),
                                  values(traceable_definitions)...)
 
 function with_tracing_definitions(body::Function, obj)
-    if obj !== () && VERSION < v"0.6.0"
-        warn("Tracing functions and modules explicitly does not work so well in Julia 0.5. Upgrade to 0.6, or use `@traceable` for better results")
-    end
     upd = merge(traceable_update(obj), traceable_macro_update())
     upd() do
         body()

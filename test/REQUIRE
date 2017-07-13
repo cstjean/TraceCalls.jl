@@ -6,3 +6,4 @@ Optim
 OrdinaryDiffEq
 Clp
 DiffEqBase
+LightGraphs

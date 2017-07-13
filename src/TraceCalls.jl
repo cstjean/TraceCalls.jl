@@ -5,7 +5,8 @@ using MacroTools
 using Base.Test: @inferred
 using ClobberingReload
 using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate, only,
-    is_function_definition, get_function, is_call_definition, EmptyRevertibleCodeUpdate
+    is_function_definition, get_function, is_call_definition, EmptyRevertibleCodeUpdate,
+    is_fancy_constructor_definition
 using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
 using DataStructures: OrderedDict
 using Memoize
@@ -106,7 +107,9 @@ top_trace(fun) = Trace(fun, (), (), [], nothing)
 const trace_data = top_trace(top_level_dummy)
 const current_trace = fill(trace_data)
 
-is_traceable(def) = is_function_definition(def) && !is_call_definition(def)
+is_traceable(def) =
+    (is_function_definition(def) && (di=splitdef(def); !is_call_definition(di)) &&
+     !is_fancy_constructor_definition(di))
 
 """ `@traceable_loose(expr)` is like `traceable(expr)`, but doesn't error on non-function
 definitions (it's a helper for `@traceable begin ... end`) """
@@ -126,8 +129,6 @@ function tracing_code(fdef::Expr)::Expr
     is_splat(arg) = splitarg(arg)[3]
     arg_name_splat(arg) = is_splat(arg) ? Expr(:..., arg_name(arg)) : arg_name(arg)
     function typed_arg(arg)
-        global uu = fdef
-        global vv = arg
         name, arg_type = splitarg(arg)
         if is_splat(arg) arg_type = Any end
         return :($name::$arg_type)

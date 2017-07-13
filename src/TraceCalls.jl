@@ -13,7 +13,7 @@ using Base: url
 
 export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
-    compare_past_trace, filter_func, apply_macro, @stacktrace
+    compare_past_trace, filter_func, apply_macro, @stacktrace, measure
 
 """ When `TraceCalls.active[]` is `false`, `@traceable ...` is an identity macro
 (it doesn't modify the function at all) """
@@ -391,11 +391,9 @@ Base.round(tr::Trace, n::Int) = map(sub->round(sub.value, n), tr)
 Base.normalize(tr::Trace, div=tr.value) =
     map(sub->sub.value / div, tr)
 
-""" `time(tr::Trace, timing_macro=:@elapsed)` times each subtrace within `tr` using
-`@elapsed` (though it is recommended to use `BenchmarkTools.@belapsed` to profile short
-functions) """
-Base.time(tr::Trace, timing_macro=:@elapsed) =
-    greenred(round(normalize(map(timing_macro, tr)), 4))
+measure(mac_or_fun::Union{Expr, Function}, tr::Trace) =
+    greenred(round(normalize(map(mac_or_fun, tr)), 4))
+
 
 only_exceptions(trace::Trace) = filter(tr->tr.value isa Exception, trace)
 macro stacktrace(to_trace, expr)

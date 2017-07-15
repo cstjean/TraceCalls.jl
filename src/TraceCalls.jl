@@ -6,7 +6,7 @@ using Base.Test: @inferred
 using ClobberingReload
 using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate, only,
     is_function_definition, get_function, is_call_definition, EmptyRevertibleCodeUpdate,
-    is_fancy_constructor_definition
+    is_fancy_constructor_definition, ModDict, RelocatableExpr, MakeRelocatableExpr
 using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
 using DataStructures: OrderedDict
 using Memoize
@@ -195,8 +195,8 @@ macro traceable(fdef::Expr)
                  :($(di[:name])($([splitarg(arg)[2] for arg in di[:args]]...))))
     
     traceable_definitions[signature] =
-          RevertibleCodeUpdate(CodeUpdate([EvalableCode(tracing_code(fdef), mod, file)]),
-                               CodeUpdate([EvalableCode(fdef, mod, file)]))
+          RevertibleCodeUpdate(tracing_code,
+                               CodeUpdate(ModDict(mod=>Set([MakeRelocatableExpr(fdef)]))))
 
     return esc(fdef)
 end

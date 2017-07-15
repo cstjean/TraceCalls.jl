@@ -239,7 +239,11 @@ end
 `fun` and returns the final Trace object """
 function recording_trace(fun::Function)
     copy!(trace_data, top_trace(fun))
-    fun()
+    try
+        trace_data.value = fun()
+    catch e
+        trace_data.value = e
+    end
     res = copy(trace_data)
     copy!(trace_data, top_trace(fun)) # don't hang on to that memory unnecessarily
     res
@@ -248,13 +252,7 @@ end
 function tracing(body::Function, to_trace=())
     with_tracing_definitions(to_trace) do
         # To debug, just use `with_tracing_definitions()` interactively
-        recording_trace() do
-            try
-                trace_data.value = body()
-            catch e
-                trace_data.value = e
-            end
-        end
+        recording_trace(body)
     end
 end
 

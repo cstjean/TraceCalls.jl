@@ -203,8 +203,10 @@ end
 
 # There might be an issue with the memo if we decide to macroexpand the code, since the
 # macroexpansion depends on the environment. It's probably a negligible issue.
-@memoize Dict{Tuple{Expr}, Any} traceable_update_handle_expr(expr::Expr) =
+@memoize Dict{Tuple{Expr}, Any} function traceable_update_handle_expr(expr0::Expr)
+    expr = ClobberingReload.strip_docstring(expr0)
     is_traceable(expr) ? tracing_code(expr) : nothing
+end
 traceable_update_handle_expr(::Any) = nothing
 clear_handle_expr_memo!() =
     empty!(eval(TraceCalls, Symbol("##traceable_update_handle_expr_memoized_cache")))

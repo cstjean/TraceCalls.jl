@@ -16,10 +16,6 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure
 
-""" When `TraceCalls.active[]` is `false`, `@traceable ...` is an identity macro
-(it doesn't modify the function at all) """
-const active = fill(true)
-
 const revertible_definitions = RevertibleCodeUpdate[]
 const traceable_definitions = OrderedDict()  # We use an OrderedDict because in case we
                                              # accidentally store the same definition
@@ -178,7 +174,6 @@ end
 """ `@traceable function foo(...) ... end` marks a function definition for the `@trace`
 macro. See the README for details. """
 macro traceable(fdef::Expr)
-    if !active[] return esc(fdef) end
     @assert !is_call_definition(fdef) "@traceable cannot handle callable object definitions"
 
     if fdef.head == :block

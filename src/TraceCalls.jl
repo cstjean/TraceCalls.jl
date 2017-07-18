@@ -153,8 +153,8 @@ function tracing_code(fdef::Expr)::Expr
     updated_fun_di[:body] = quote
         $prev_trace = $TraceCalls.current_trace[]
         $new_trace =
-            $TraceCalls.Trace($fname, ($([:($TraceCalls.store($a))
-                                          for a in passed_args]...),),
+            $TraceCalls.Trace($fname,
+                              map($TraceCalls.store, ($(passed_args...),)),
                               ($(passed_kwargs...),),
                               [], $TraceCalls.NotReturned())
         $TraceCalls.current_trace[] = $new_trace

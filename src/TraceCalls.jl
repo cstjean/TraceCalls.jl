@@ -14,7 +14,8 @@ using Base: url
 
 export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
-    compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size
+    compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
+    is_mutating, REPR
 
 const revertible_definitions = RevertibleCodeUpdate[]
 const traceable_definitions = OrderedDict()  # We use an OrderedDict because in case we
@@ -119,6 +120,10 @@ function handle_missing_arg(arg)
     combinearg(arg_name === nothing ? gensym() : arg_name, arg_type, is_splat, default)
 end
 
+""" Overload `TraceCalls.store(x)` for specific types to change how `TraceCalls` stores
+its arguments. For example, `TraceCalls.store(x::Vector) = copy(x)`. See also ?REPR. """
+store(x) = x
+
 """  Takes a function definition, and returns a traceing version of it. """
 function tracing_code(fdef::Expr)::Expr
     arg_name(arg) = splitarg(arg)[1]
@@ -148,7 +153,8 @@ function tracing_code(fdef::Expr)::Expr
     updated_fun_di[:body] = quote
         $prev_trace = $TraceCalls.current_trace[]
         $new_trace =
-            $TraceCalls.Trace($fname, ($(passed_args...),),
+            $TraceCalls.Trace($fname, ($([:($TraceCalls.store($a))
+                                          for a in passed_args]...),),
                               ($(passed_kwargs...),),
                               [], $TraceCalls.NotReturned())
         $TraceCalls.current_trace[] = $new_trace
@@ -156,7 +162,7 @@ function tracing_code(fdef::Expr)::Expr
         try
             $res = $do_body($(map(arg_name_splat, di[:args])...);
                             $(passed_kwargs...))
-            $new_trace.value = $res
+            $new_trace.value = $TraceCalls.store($res)
             return $res
         catch $e
             $new_trace.value = $e
@@ -317,6 +323,14 @@ call_html(::Any, tr::Trace) =
 
 trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
 
+struct REPR
+    html
+    REPR(x) = new(val_html(x))
+end
+val_html(r::REPR) = r.html
+
+################################################################################
+
 """ `filter_cutting(f::Function, tr::Trace)` filters all subtraces (and their
 callees) for which `f(tr)` is false. """
 filter_cutting(f::Function, tr::Trace) =
@@ -349,6 +363,10 @@ prune(tr::Trace, max_depth::Int, max_length::Int=1000000000) =
           [prune(sub_tr, max_depth-1, max_length)
            for sub_tr in tr.called[1:min(length(tr), max_length)] if max_depth > 0],
           tr.value)
+
+is_mutating(tr::Trace) = is_mutating(tr.func)
+is_mutating(f::Function) = last(string(f)) == '!'
+is_mutating(typ::Type) = typ
 
 function is_inferred(tr::Trace)
     try

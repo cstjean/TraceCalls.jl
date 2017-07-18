@@ -3,10 +3,6 @@ module TraceCalls
 
 using MacroTools
 using Base.Test: @inferred
-using ClobberingReload
-using ClobberingReload: run_code_in, module_code, RevertibleCodeUpdate, only,
-    is_function_definition, get_function, is_call_definition, EmptyRevertibleCodeUpdate,
-    is_fancy_constructor_definition, ModDict, RelocatableExpr, MakeRelocatableExpr
 using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
 using DataStructures: OrderedDict
 using Memoize
@@ -16,6 +12,8 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR
+
+include("code_update.jl")
 
 const revertible_definitions = RevertibleCodeUpdate[]
 const traceable_definitions = OrderedDict()  # We use an OrderedDict because in case we
@@ -205,7 +203,7 @@ end
 # There might be an issue with the memo if we decide to macroexpand the code, since the
 # macroexpansion depends on the environment. It's probably a negligible issue.
 @memoize Dict{Tuple{Expr}, Any} function traceable_update_handle_expr(expr0::Expr)
-    expr = ClobberingReload.strip_docstring(expr0)
+    expr = strip_docstring(expr0)
     is_traceable(expr) ? tracing_code(expr) : nothing
 end
 traceable_update_handle_expr(::Any) = nothing
@@ -217,7 +215,7 @@ given object. """
 function traceable_update end
 
 custom_when_missing(x) = warn(x)
-custom_when_missing(fail::ClobberingReload.UpdateInteractiveFailure) =
+custom_when_missing(fail::UpdateInteractiveFailure) =
     warn("Use `@traceable` to trace methods defined interactively.")
 traceable_update(obj::Union{Module, String}) =
     update_code_revertible(traceable_update_handle_expr, obj)

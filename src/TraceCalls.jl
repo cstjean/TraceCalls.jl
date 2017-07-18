@@ -14,7 +14,7 @@ using Base: url
 
 export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
-    compare_past_trace, filter_func, apply_macro, @stacktrace, measure
+    compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size
 
 const revertible_definitions = RevertibleCodeUpdate[]
 const traceable_definitions = OrderedDict()  # We use an OrderedDict because in case we
@@ -276,11 +276,12 @@ end
 immutable Bold
     content
 end
+""" `TraceCalls.return_val_html(x)` is the HTML used by `TraceCalls` to display each
+return value (arguments and return values). Defaults to calling `val_html(x)`. """
 return_val_html(x) =  val_html(Bold(FontColor("green", x)))
 return_val_html(x::Exception) = val_html(FontColor("red", x))
 """ `TraceCalls.val_html(x)` is the HTML used by `TraceCalls` to display each value
-(arguments and return values). Customize it by overloading it. Defaults to `string(x)`.
-"""
+(arguments and return values). Customize it by overloading. Defaults to `repr(x)`. """
 val_html(x) = repr(x)
 val_html(x::FontColor) = """<font color=$(x.color)>""" * val_html(x.content) * """</font>"""
 val_html(x::Bold) = "<b>" * val_html(x.content) * "</b>"
@@ -307,6 +308,9 @@ url_func_name(tr::Trace) =
     (url(tr) == "" ? string(tr.func) :
      """<a href="$(url(tr))" target="_blank" style="color: black; text-decoration: none; border-bottom: 1px #C3C3C3 dotted">$(tr.func)</a>""")
 
+""" `call_html(::<function type>, ::Trace)` is called to display each trace.
+Overload it for specific functions with
+`TraceCalls.call_html(::typeof(function_name), tr::Trace) = "some html code"` """
 call_html(::Any, tr::Trace) =
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
     "<pre>$(url_func_name(tr))($(args_html(tr.args))$(kwargs_html(tr.kwargs))) => $(return_val_html(tr.value))</pre>"
@@ -397,7 +401,7 @@ macro stacktrace(to_trace, expr)
 end
 
 macro stacktrace(expr)
-    esc(:($TraceCalls.@stacktrace $expr))
+    esc(:($TraceCalls.@stacktrace () $expr))
 end
 
 ################################################################################

@@ -2,6 +2,8 @@ using TraceCalls
 using TraceCalls: tree_size
 using Base.Test
 
+include("code_update.jl")
+
 function ctree_size(tr::Trace)
     # tree_size, but first make sure that it wasn't an error
     @assert !isa(tr.value, Exception)
@@ -63,7 +65,7 @@ using Gadfly
 # @trace Knet include(joinpath(root_of(Knet), "examples", "linreg.jl"))
 
 
-using DataStructures
+using DataStructures: binary_minheap, OrderedDict
 @test ctree_size(@trace DataStructures binary_minheap([2,11, 14])) > 3
 # This looks innocent, but it helped us find a problem with typed slurped args
 @test ctree_size(@trace DataStructures.OrderedDict OrderedDict(1=>2, 3=>4)) >= 1

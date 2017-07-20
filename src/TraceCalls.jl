@@ -406,16 +406,21 @@ Base.round(tr::Trace, n::Int) = map(sub->round(sub.value, n), tr)
 Base.normalize(tr::Trace, div=tr.value) =
     map(sub->sub.value / div, tr)
 
-""" `measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false)` applies
-`mac_or_fun` to every function call in `tr`, with a `green->red` color scheme. """
-function measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false)
+"""
+    measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false,
+            threshold=0)`
+
+Apply `mac_or_fun` to every function call in `tr`, with a `green->red` color scheme.
+Remove all function calls whose result is below `threshold`. """
+function measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false,
+                 threshold=0)
     tr() # run it once, to get the JIT behind us
+    filter_thresh(tr) = filter_cutting(t->t.value>=threshold, tr)
+    tr2 = map(mac_or_fun, tr)
     if normalize
-        greenred(round(TraceCalls.normalize(map(mac_or_fun, tr)), 4))
+        greenred(round(filter_thresh(TraceCalls.normalize(tr2)), 4))
     else
-        tr2 = map(mac_or_fun, tr)
-        max = maximum(tr2)
-        greenred(tr2; map=x->x/max)
+        greenred(filter_thresh(tr2); map=x->x/tr2.value)
     end
 end
 

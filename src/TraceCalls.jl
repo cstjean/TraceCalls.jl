@@ -11,7 +11,7 @@ using Base: url
 export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
-    is_mutating, REPR
+    is_mutating, REPR, filter_cutting
 
 include("code_update.jl")
 
@@ -436,9 +436,9 @@ val_html(isd::IsEqual) =
                        "<u>before</u>: $(val_html(isd.a)) <u>vs. now:</u> $(val_html(isd.b))"))
 
 
-""" `compare_past_trace(old_trace::Trace; filter_out_equal=true))` reruns every subtrace
-in `old_trace`, and shows in red where the new result differs from the old.
-If `filter_out_equal==true`, only show the non-equal results. """
+""" `compare_past_trace(old_trace::Trace; filter_out_equal=true))` reruns every function
+call in `old_trace`, and shows in red where the new result differs from the old.  If
+`filter_out_equal==true`, only show the non-equal results. """
 function compare_past_trace(old_trace::Trace; filter_out_equal=true)
     tr2 = map(old_trace) do sub_tr
         IsEqual(sub_tr.value, sub_tr()) end

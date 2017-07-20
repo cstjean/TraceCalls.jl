@@ -363,10 +363,16 @@ function show_call(io::IO, mime::MIME"text/html", ::Any, tr::Trace)
 end
 
 struct REPR
+    text
     html
-    REPR(x) = new(val_html(x))
+    function REPR(x)
+        s_text = IOBuffer(); show_val(s_text, MIME"text/plain"(), x)
+        s_html = IOBuffer(); show_val(s_html, MIME"text/html"(), x)
+        new(String(take!(s_text)), String(take!(s_html)))
+    end
 end
-val_html(r::REPR) = r.html
+show_val(io::IO, ::MIME"text/plain", r::REPR) = write(io, r.text)
+show_val(io::IO, ::MIME"text/html", r::REPR) = write(io, r.html)
 
 ################################################################################
 

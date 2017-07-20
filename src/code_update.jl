@@ -126,9 +126,6 @@ function (rcu::RevertibleCodeUpdate)(body_fn::Function)
     end
 end
 
-parse_file_mod(file, mod) = (file == module_definition_file_(mod) ?
-                             parse_module_file(file)[2] : parse_file(file))
-
 
 ################################################################################
 # These should go into MacroTools/ExprTools

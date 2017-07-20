@@ -351,7 +351,7 @@ filter_func(functions::Vector, tr::Trace) = filter(tr->tr.func in functions, tr)
 filter_func(func::Function, tr::Trace) = filter_func([func], tr)
 
 """ `collect(tr::Trace)` returns a vector of all `Trace` objects within `tr`. """
-Base.collect(tr::Trace) = Trace[tr; mapreduce(collect, vcat, [], tr)]
+Base.collect(tr::Trace) = Trace[tr; mapreduce(collect, vcat, [], tr.called)]
 
 """ `prune(tr::Trace, max_depth::Int, max_length::Int=1000000000)` prunes the Trace-tree
 maximum tree depth, and maximum length (number of branches in each node). 
@@ -396,19 +396,28 @@ redgreen(x::Bool) = x ? "green" : "red"
 
 """ `redgreen(tr::Trace)` colors all `value`s as shades of red/green, with
 0/false being pure red and 1/true being pure green. """
-redgreen(tr::Trace) =
-    map(sub->FontColor(redgreen(sub.value), sub.value), tr)
+redgreen(tr::Trace; map=identity) =
+    TraceCalls.map(sub->FontColor(redgreen(map(sub.value)), sub.value), tr)
 """ `greenred(tr::Trace)` is like `redgreen`, but with 0/false=green, 1/true=red. """
-greenred(tr::Trace) =
-    map(sub->FontColor(redgreen(1-sub.value), sub.value), tr)
+greenred(tr::Trace; map=identity) = redgreen(tr::Trace; map=x->1-map(x))
 
 Base.maximum(tr::Trace) = maximum(sub.value for sub in collect(tr))
 Base.round(tr::Trace, n::Int) = map(sub->round(sub.value, n), tr)
 Base.normalize(tr::Trace, div=tr.value) =
     map(sub->sub.value / div, tr)
 
-measure(mac_or_fun::Union{Expr, Function}, tr::Trace) =
-    greenred(round(normalize(map(mac_or_fun, tr)), 4))
+""" `measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false)` applies
+`mac_or_fun` to every function call in `tr`, with a `green->red` color scheme. """
+function measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false)
+    tr() # run it once, to get the JIT behind us
+    if normalize
+        greenred(round(TraceCalls.normalize(map(mac_or_fun, tr)), 4))
+    else
+        tr2 = map(mac_or_fun, tr)
+        max = maximum(tr2)
+        greenred(tr2; map=x->x/max)
+    end
+end
 
 
 only_exceptions(trace::Trace) = filter(tr->tr.value isa Exception, trace)

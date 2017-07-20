@@ -273,19 +273,20 @@ const tab_def = """<style type="text/css">
 -->
 </style>"""
 
-immutable FontColor
+struct FontColor
     color
     content
 end
-immutable Bold
+struct Bold
     content
 end
-""" `TraceCalls.return_val_html(x)` is the HTML used by `TraceCalls` to display each
-return value (arguments and return values). Defaults to calling `val_html(x)`. """
+""" `TraceCalls.show_return_val(io::IO, mime, x)` is the function used by `TraceCalls` to
+display each return value. Defaults to calling `show_val`. """
 show_return_val(io::IO, mime, x) =  show_val(io, mime, Bold(FontColor("green", x)))
 show_return_val(io::IO, mime, x::Exception) = show_val(io, mime, FontColor("red", x))
-""" `TraceCalls.val_html(x)` is the HTML used by `TraceCalls` to display each value
-(arguments and return values). Customize it by overloading. Defaults to `repr(x)`. """
+""" `TraceCalls.show_val(io::IO, mime, x)` is the HTML used by `TraceCalls` to display
+each value (arguments and return values). Customize it by overloading. Defaults to
+`show(io, x)`. """
 show_val(io::IO, _, x) = show(io, x)
 function show_val(io::IO, mime::MIME"text/html", x::FontColor)
     write(io, """<font color=$(x.color)>""")
@@ -344,12 +345,11 @@ function show_func_name(io::IO, mime::MIME"text/html", tr::Trace)
           """<a href="$(url(tr))" target="_blank" style="color: black; text-decoration: none; border-bottom: 1px #C3C3C3 dotted">$(tr.func)</a>""")
 end
 
-call_text(::Any, tr::Trace) =
-    "$(string(tr.func))($(args_html(tr.args))$(kwargs_html(tr.kwargs))) => $(return_val_html(tr.value))"
+""" `show_call(io::IO, mime, ::Any, tr::Trace)` is called to display
+each trace.  Overload it for specific functions with
+`TraceCalls.show_call(io::IO, mime, ::typeof(function_name), tr::Trace) = ...` """
+function show_call end
 
-""" `call_html(::<function type>, ::Trace)` is called to display each trace.
-Overload it for specific functions with
-`TraceCalls.call_html(::typeof(function_name), tr::Trace) = "some html code"` """
 function show_call(io::IO, mime::MIME"text/html", ::Any, tr::Trace)
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
     write(io, "<pre>")
@@ -491,11 +491,19 @@ end
 iseql(isd::IsEqual) = iseql(isd.a, isd.b)
 iseql(a::Nullable, b::Nullable) = isequal(a, b)
 iseql(a, b) = a == b
-val_html(isd::IsEqual) =
-    val_html(FontColor(redgreen(iseql(isd)),
-                       iseql(isd) ? string("Same", val_html(isd.a)) :
-                       "<u>before</u>: $(val_html(isd.a)) <u>vs. now:</u> $(val_html(isd.b))"))
-
+function show_val(io::IO, mime::MIME"text/html", isd::IsEqual)
+    write(io, """<font color=$(redgreen(iseql(isd)))>""")
+    if iseql(isd)
+        write(io, "Same: ")
+        show_val(io, mime, isd.a)
+    else
+        write(io, "<u>before</u>: ")
+        show_val(io, mime, isd.a)
+        write(io, " <u>vs. now:</u> ")
+        show_val(io, mime, isd.b)
+    end
+    write(io, """</font>""")
+end
 
 """ `compare_past_trace(old_trace::Trace; filter_out_equal=true))` reruns every function
 call in `old_trace`, and shows in red where the new result differs from the old.  If

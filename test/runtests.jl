@@ -41,6 +41,21 @@ include("incl.jl")
 
 @test ctree_size(@trace Base.isnull get(Nullable(10))) == 2
 
+
+# compare_past_trace
+@traceable function foo(x)
+    my_length(x) + bar(x)
+end
+@traceable my_length(x) = length(x)
+@traceable bar(x) = 10
+
+u = [10,20,30]
+tr = @trace foo(u)
+push!(u, 40)
+@test 0.25 == mean([TraceCalls.iseql(tr.value)
+                    for tr in collect(compare_past_trace(tr, filter_out_equal=false))])
+
+
 ################################################################################
 # Testing with popular packages
 import ClobberingReload

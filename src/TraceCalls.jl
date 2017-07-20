@@ -301,6 +301,19 @@ function Base.show(io::IO, ::MIME"text/html", tr::Trace)
     write(io, "</ul>")
 end
 
+indent = 0
+function Base.show(io::IO, ::MIME"text/plain", tr::Trace)
+    println(io, string(" " ^ indent, "- ", call_text(tr.func, tr)))
+    global indent += 3
+    try
+        for called in tr.called
+            show(io, MIME"text/plain"(), called)
+        end
+    finally
+        indent -= 5
+    end
+end
+
 kwa_eql(kwarg::Tuple) = "$(first(kwarg))=$(val_html(last(kwarg)))"
 kwargs_html(kwargs) = "; " * join(map(kwa_eql, kwargs), ", ")
 args_html(kwargs) = join(map(val_html, kwargs), ", ")
@@ -311,6 +324,9 @@ sub_called_html(tr::Trace) =
 url_func_name(tr::Trace) =
     (url(tr) == "" ? string(tr.func) :
      """<a href="$(url(tr))" target="_blank" style="color: black; text-decoration: none; border-bottom: 1px #C3C3C3 dotted">$(tr.func)</a>""")
+
+call_text(::Any, tr::Trace) =
+    "$(string(tr.func))($(args_html(tr.args))$(kwargs_html(tr.kwargs))) => $(return_val_html(tr.value))"
 
 """ `call_html(::<function type>, ::Trace)` is called to display each trace.
 Overload it for specific functions with

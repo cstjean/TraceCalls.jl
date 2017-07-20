@@ -44,7 +44,7 @@ immediate traceable function calls that happened during the execution of this tr
 There are no accessors for `Trace`; please reference its fields directly.
 For instance, `filter(tr->isa(tr.args[1], Int), trace)` will select all calls whose
 first argument is an `Int`. """
-type Trace
+mutable struct Trace
     func             # the function/callable called
     args::Tuple      # the positional arguments
     kwargs::Tuple    # the keyword arguments
@@ -282,16 +282,24 @@ immutable Bold
 end
 """ `TraceCalls.return_val_html(x)` is the HTML used by `TraceCalls` to display each
 return value (arguments and return values). Defaults to calling `val_html(x)`. """
-return_val_html(x) =  val_html(Bold(FontColor("green", x)))
-return_val_html(x::Exception) = val_html(FontColor("red", x))
+show_return_val(io::IO, mime, x) =  show_val(io, mime, Bold(FontColor("green", x)))
+show_return_val(io::IO, mime, x::Exception) = show_val(io, mime, FontColor("red", x))
 """ `TraceCalls.val_html(x)` is the HTML used by `TraceCalls` to display each value
 (arguments and return values). Customize it by overloading. Defaults to `repr(x)`. """
-val_html(x) = repr(x)
-val_html(x::FontColor) = """<font color=$(x.color)>""" * val_html(x.content) * """</font>"""
-val_html(x::Bold) = "<b>" * val_html(x.content) * "</b>"
+show_val(io::IO, _, x) = show(io, x)
+function show_val(io::IO, mime::MIME"text/html", x::FontColor)
+    write(io, """<font color=$(x.color)>""")
+    show_val(io, mime, x.content)
+    write(io, """</font>""")
+end
+function show_val(io::IO, mime::MIME"text/html", x::Bold)
+    write(io, "<b>")
+    show_val(io, mime, x.content)
+    write(io, "</b>")
+end
 
-function Base.show(io::IO, ::MIME"text/html", tr::Trace)
-    write(io, call_html(tr.func, tr))
+function Base.show(io::IO, mime::MIME"text/html", tr::Trace)
+    show_call(io::IO, mime, tr.func, tr)
     write(io, """<ul>""")
     for called in tr.called
         write(io, "<li>")
@@ -301,29 +309,40 @@ function Base.show(io::IO, ::MIME"text/html", tr::Trace)
     write(io, "</ul>")
 end
 
-indent = 0
-function Base.show(io::IO, ::MIME"text/plain", tr::Trace)
-    println(io, string(" " ^ indent, "- ", call_text(tr.func, tr)))
-    global indent += 3
-    try
-        for called in tr.called
-            show(io, MIME"text/plain"(), called)
-        end
-    finally
-        indent -= 5
+# indent = 0
+# function Base.show(io::IO, ::MIME"text/plain", tr::Trace)
+#     println(io, string(" " ^ indent, "- ", call_text(tr.func, tr)))
+#     global indent += 3
+#     try
+#         for called in tr.called
+#             show(io, MIME"text/plain"(), called)
+#         end
+#     finally
+#         indent -= 5
+#     end
+# end
+
+function show_kwargs(io::IO, mime, kwargs)
+    write(io, "; ")
+    for (i, (sym, val)) in enumerate(kwargs)
+        write(io, string(sym::Symbol))
+        write(io, "=")
+        show_val(io, mime, val)
+        if i != length(kwargs) write(io, ", ") end
     end
 end
+function show_args(io::IO, mime, args)
+    for (i, arg) in enumerate(args)
+        show_val(io, mime, arg)
+        if i != length(args) write(io, ", ") end
+    end
+end
+show_kwargs(io::IO, mime, kwargs::Tuple{}) = nothing
 
-kwa_eql(kwarg::Tuple) = "$(first(kwarg))=$(val_html(last(kwarg)))"
-kwargs_html(kwargs) = "; " * join(map(kwa_eql, kwargs), ", ")
-args_html(kwargs) = join(map(val_html, kwargs), ", ")
-kwargs_html(kwargs::Tuple{}) = ""
-sub_called_html(tr::Trace) =
-     """<ul>""" * mapreduce(x->"<li>"*trace_html(x)*"</li>", *, "", tr.called) * "</ul>"
-
-url_func_name(tr::Trace) =
-    (url(tr) == "" ? string(tr.func) :
-     """<a href="$(url(tr))" target="_blank" style="color: black; text-decoration: none; border-bottom: 1px #C3C3C3 dotted">$(tr.func)</a>""")
+function show_func_name(io::IO, mime::MIME"text/html", tr::Trace)
+    write(io, url(tr) == "" ? string(tr.func) :
+          """<a href="$(url(tr))" target="_blank" style="color: black; text-decoration: none; border-bottom: 1px #C3C3C3 dotted">$(tr.func)</a>""")
+end
 
 call_text(::Any, tr::Trace) =
     "$(string(tr.func))($(args_html(tr.args))$(kwargs_html(tr.kwargs))) => $(return_val_html(tr.value))"
@@ -331,11 +350,17 @@ call_text(::Any, tr::Trace) =
 """ `call_html(::<function type>, ::Trace)` is called to display each trace.
 Overload it for specific functions with
 `TraceCalls.call_html(::typeof(function_name), tr::Trace) = "some html code"` """
-call_html(::Any, tr::Trace) =
+function show_call(io::IO, mime::MIME"text/html", ::Any, tr::Trace)
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    "<pre>$(url_func_name(tr))($(args_html(tr.args))$(kwargs_html(tr.kwargs))) => $(return_val_html(tr.value))</pre>"
-
-trace_html(tr::Trace) = call_html(tr.func, tr) * sub_called_html(tr)
+    write(io, "<pre>")
+    show_func_name(io, mime, tr)
+    write(io, "(")
+    show_args(io, mime, tr.args)
+    show_kwargs(io, mime, tr.kwargs)
+    write(io, ") => ")
+    show_return_val(io, mime, tr.value)
+    write(io, "</pre>")
+end
 
 struct REPR
     html

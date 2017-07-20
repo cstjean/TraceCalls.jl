@@ -99,3 +99,9 @@ A = [
 ]
 graph = Graph(A)
 @test ctree_size(@trace LightGraphs adjacency_matrix(graph)) > 5
+
+
+################################################################################
+
+using NBInclude
+nbinclude("../README.ipynb")

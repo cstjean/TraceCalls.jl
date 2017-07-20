@@ -1,3 +1,5 @@
+NBInclude
+
 JuMP
 Gadfly
 DataStructures
@@ -7,3 +9,4 @@ OrdinaryDiffEq
 Clp
 DiffEqBase
 LightGraphs
+Calculus

@@ -5,6 +5,7 @@ if !isdefined(Main, :Revise) && !haskey(ENV, "JULIA_REVISE")
 end
 import Revise
 using Revise: ModDict, parse_source, RelocatableExpr
+import ClobberingReload
 using ClobberingReload: scrub_redefinition_warnings
 
 export apply_code!, revert_code!, update_code_revertible, RevertibleCodeUpdate,
@@ -166,8 +167,13 @@ function revertible_update_helper(fn)
     end
 end
 
+# Return the list of files in `mod`
+# Memoizing is technically wrong, since the user could conceivably add a file.
+# This seems OK until Revise.jl provides module_files
+@memoize ObjectIdDict module_files(mod::Module) = Revise.parse_pkg_files(Symbol(mod))
+
 code_of(mod::Module) = 
-    merge((code_of(mod, file) for file in Revise.parse_pkg_files(Symbol(mod)))...)
+    merge((code_of(mod, file) for file in module_files(mod))...)
            
 code_of(mod::Module, file::String) =
     (haskey(Revise.file2modules, file) ? CodeUpdate(Revise.file2modules[file].md) :
@@ -210,6 +216,7 @@ function parse_mod!(mod::Module)
         end
     elseif !haskey(Revise.file2modules, ClobberingReload.module_definition_file(mod))
         Revise.parse_pkg_files(Symbol(mod)) # it's a side-effect of this function...
+        @assert haskey(Revise.file2modules, ClobberingReload.module_definition_file(mod))
     end
     nothing
 end

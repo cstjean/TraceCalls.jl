@@ -1,6 +1,7 @@
 __precompile__()
 module TraceCalls
 
+using Requires
 using MacroTools
 using Base.Test: @inferred
 using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
@@ -302,7 +303,7 @@ show_val(io::IO, mime::MIME"text/plain", x::Union{Bold, FontColor}) =
     show_val(io, mime, x.content)
 
 function Base.show(io::IO, mime::MIME"text/html", tr::Trace)
-    show_call(io::IO, mime, tr.func, tr)
+    show_call(io::IO, mime, tr)
     write(io, """<ul>""")
     for called in tr.called
         write(io, "<li>")
@@ -345,9 +346,28 @@ function show_args(io::IO, mime, args)
 end
 show_kwargs(io::IO, mime, kwargs::Tuple{}) = nothing
 
-show_func_name(io::IO, mime::MIME"text/html", tr::Trace) = 
+is_atom = false
+
+@require Juno begin
+    import Media
+    using Juno: Tree
+
+    if Juno.isactive()
+        global is_atom = true
+
+        juno_tree(tr::Trace) =
+            Tree(HTML(TraceCalls.call_html(tr)), map(juno_tree, tr.called))
+        function Juno.render(inl::Juno.Inline, tr::Trace)
+            Juno.render(inl, juno_tree(tr))
+        end
+    end
+end
+
+function show_func_name(io::IO, mime::MIME"text/html", tr::Trace)
+    color = is_atom ? "" : "color: black;"
     write(io, url(tr) == "" ? string(tr.func) :
-          """<a href="$(url(tr))" target="_blank" style="color: black; text-decoration: none; border-bottom: 1px #C3C3C3 dotted">$(tr.func)</a>""")
+          """<a href="$(url(tr))" target="_blank" style="$color text-decoration: none; border-bottom: 1px #C3C3C3 dotted">$(tr.func)</a>""")
+end
 
 show_func_name(io::IO, mime::MIME"text/plain", tr::Trace) = write(io, string(tr.func))
 
@@ -374,14 +394,26 @@ end
 
 show_call(io::IO, mime::MIME"text/plain", ::Any, tr::Trace) =
     show_call_core(io, mime, tr)
+show_call(io::IO, mime, tr::Trace) = show_call(io, mime, tr.func, tr)
+
+call_html(tr::Trace) = get_io_output(io->show_call(io, MIME"text/html"(), tr))
+
+""" `get_io_output() do io ... write(io) ...` returns everything that was written
+to `io`, as a string. """
+function get_io_output(fn::Function)
+    buf = IOBuffer()
+    fn(buf)
+    return String(take!(buf))
+end
 
 struct REPR
     text
     html
     function REPR(x)
-        s_text = IOBuffer(); show_val(s_text, MIME"text/plain"(), x)
+        s_text = 
         s_html = IOBuffer(); show_val(s_html, MIME"text/html"(), x)
-        new(String(take!(s_text)), String(take!(s_html)))
+        new(get_io_output() do io; show_val(io, MIME"text/plain"(), x) end,
+            get_io_output() do io; show_val(io, MIME"text/html"(), x) end)
     end
 end
 show_val(io::IO, ::MIME"text/plain", r::REPR) = write(io, r.text)

@@ -1,8 +1,8 @@
-if !isdefined(Main, :Revise) && !haskey(ENV, "JULIA_REVISE")
-    # This doesn't work. Either the ENV from this module is different from the
-    # Revise ENV, or the import happens before ENV can be set.
-    ENV["JULIA_REVISE"] = "manual"   # FIXME; that's still not great
-end
+# if !isdefined(Main, :Revise) && !haskey(ENV, "JULIA_REVISE")
+#     # This doesn't work. Either the ENV from this module is different from the
+#     # Revise ENV, or the import happens before ENV can be set.
+#     ENV["JULIA_REVISE"] = "manual"   # FIXME; that's still not great
+# end
 import Revise
 using Revise: ModDict, parse_source, RelocatableExpr
 import ClobberingReload

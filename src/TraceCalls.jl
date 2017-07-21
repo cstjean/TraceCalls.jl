@@ -298,6 +298,8 @@ function show_val(io::IO, mime::MIME"text/html", x::Bold)
     show_val(io, mime, x.content)
     write(io, "</b>")
 end
+show_val(io::IO, mime::MIME"text/plain", x::Union{Bold, FontColor}) =
+    show_val(io, mime, x.content)
 
 function Base.show(io::IO, mime::MIME"text/html", tr::Trace)
     show_call(io::IO, mime, tr.func, tr)
@@ -310,18 +312,21 @@ function Base.show(io::IO, mime::MIME"text/html", tr::Trace)
     write(io, "</ul>")
 end
 
-# indent = 0
-# function Base.show(io::IO, ::MIME"text/plain", tr::Trace)
-#     println(io, string(" " ^ indent, "- ", call_text(tr.func, tr)))
-#     global indent += 3
-#     try
-#         for called in tr.called
-#             show(io, MIME"text/plain"(), called)
-#         end
-#     finally
-#         indent -= 5
-#     end
-# end
+call_indentation = 3
+indent = 0
+function Base.show(io::IO, mime::MIME"text/plain", tr::Trace)
+    write(io, string(" " ^ indent, "- "))
+    show_call(io, mime, tr.func, tr)
+    write(io, "\n")
+    global indent += call_indentation
+    try
+        for called in tr.called
+            show(io, mime, called)
+        end
+    finally
+        indent -= call_indentation
+    end
+end
 
 function show_kwargs(io::IO, mime, kwargs)
     write(io, "; ")
@@ -340,27 +345,35 @@ function show_args(io::IO, mime, args)
 end
 show_kwargs(io::IO, mime, kwargs::Tuple{}) = nothing
 
-function show_func_name(io::IO, mime::MIME"text/html", tr::Trace)
+show_func_name(io::IO, mime::MIME"text/html", tr::Trace) = 
     write(io, url(tr) == "" ? string(tr.func) :
           """<a href="$(url(tr))" target="_blank" style="color: black; text-decoration: none; border-bottom: 1px #C3C3C3 dotted">$(tr.func)</a>""")
-end
+
+show_func_name(io::IO, mime::MIME"text/plain", tr::Trace) = write(io, string(tr.func))
 
 """ `show_call(io::IO, mime, ::Any, tr::Trace)` is called to display
 each trace.  Overload it for specific functions with
 `TraceCalls.show_call(io::IO, mime, ::typeof(function_name), tr::Trace) = ...` """
 function show_call end
 
-function show_call(io::IO, mime::MIME"text/html", ::Any, tr::Trace)
-    # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    write(io, "<pre>")
+function show_call_core(io, mime, tr)
     show_func_name(io, mime, tr)
     write(io, "(")
     show_args(io, mime, tr.args)
     show_kwargs(io, mime, tr.kwargs)
     write(io, ") => ")
     show_return_val(io, mime, tr.value)
+end
+
+function show_call(io::IO, mime::MIME"text/html", ::Any, tr::Trace)
+    # Could use CSS https://www.computerhope.com/issues/ch001034.htm
+    write(io, "<pre>")
+    show_call_core(io, mime, tr)
     write(io, "</pre>")
 end
+
+show_call(io::IO, mime::MIME"text/plain", ::Any, tr::Trace) =
+    show_call_core(io, mime, tr)
 
 struct REPR
     text

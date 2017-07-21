@@ -154,6 +154,8 @@ function tracing_code(fdef::Expr)::Expr
         $new_trace =
             $TraceCalls.Trace($fname,
                               map($TraceCalls.store, ($(passed_args...),)),
+                              # We don't call it on kwargs. Does any function ever mutate
+                              # a kwarg? Seems unlikely.
                               ($(passed_kwargs...),),
                               [], $TraceCalls.NotReturned())
         $TraceCalls.current_trace[] = $new_trace
@@ -486,8 +488,9 @@ function redgreen(x::Number)
 end
 redgreen(x::Bool) = x ? "green" : "red"
 
-""" `redgreen(tr::Trace)` colors all `value`s as shades of red/green, with
-0/false being pure red and 1/true being pure green. """
+""" `redgreen(tr::Trace; map=identity)` colors all `value`s as shades of red/green, with
+`map(value) == 0/false` being pure red and `1/true` being pure green (so `map` can be
+used to normalize the values into that range). """
 redgreen(tr::Trace; map=identity) =
     TraceCalls.map(sub->FontColor(redgreen(map(sub.value)), sub.value), tr)
 """ `greenred(tr::Trace)` is like `redgreen`, but with 0/false=green, 1/true=red. """

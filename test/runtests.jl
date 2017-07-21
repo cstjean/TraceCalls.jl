@@ -15,8 +15,9 @@ g(x::Int) = 10+h(5.0)+h(10)
 @traceable f(x) = g(x+2)
 @test ctree_size(@trace f(10)) == 4
 
-TraceCalls.val_html(::Float64) = "some_float"
-TraceCalls.call_html(::typeof(f), tr::Trace) = "f was called"
+TraceCalls.show_val(io::IO, ::MIME"text/plain", ::Float64) = write(io, "some_float")
+TraceCalls.show_call(io::IO, ::MIME"text/plain", ::typeof(f), tr::Trace) =
+    write(io, "f was called")
 @trace f(10)
 
 # Check if symbols are correctly handled in macros

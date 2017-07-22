@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/cstjean/TraceCalls.jl.svg?branch=master)](https://travis-ci.org/cstjean/TraceCalls.jl)
 
-TraceCalls.jl is a functional tracing package, for debugging, exploring and profiling
+TraceCalls.jl is a functional tracing package for debugging, exploring and profiling
 Julia code, built on top of [Revise.jl](https://github.com/timholy/Revise.jl)
 
 # Installation
@@ -17,7 +17,7 @@ Pkg.checkout("https://github.com/cstjean/TraceCalls.jl")
 
 # Interaction with Revise.jl
 
-TraceCalls.jl automatically loads [Revise.jl](https://github.com/timholy/Revise.jl),
-which triggers automatic reloading behaviour for subsequently-loaded packages. This is
+TraceCalls.jl imports [Revise.jl](https://github.com/timholy/Revise.jl),
+which triggers automatic reloading behaviour for subsequently-loaded packages. This
 should be fine for most users, but you can [turn it
 off](https://github.com/timholy/Revise.jl#manual-revision) if it's an issue.

@@ -10,3 +10,4 @@ Clp
 DiffEqBase
 LightGraphs
 Calculus
+BenchmarkTools

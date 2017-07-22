@@ -12,7 +12,7 @@ using Base: url
 export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
-    is_mutating, REPR, filter_cutting
+    is_mutating, REPR, filter_cutting, NoTraceable
 
 include("code_update.jl")
 
@@ -232,8 +232,19 @@ traceable_update(tup::Tuple{}) = EmptyRevertibleCodeUpdate()
 traceable_macro_update() = merge(EmptyRevertibleCodeUpdate(),
                                  values(traceable_definitions)...)
 
+
+""" `@trace (foo, NoTraceable()) ...` will only trace `foo`; not the `@traceable`
+functions. """
+struct NoTraceable end
+traceable_update(::NoTraceable) = EmptyRevertibleCodeUpdate()
+
+
 function with_tracing_definitions(body::Function, obj)
-    upd = merge(traceable_update(obj), traceable_macro_update())
+    if obj isa Tuple && NoTraceable() in obj
+        upd = traceable_update(obj)
+    else
+        upd = merge(traceable_update(obj), traceable_macro_update())
+    end
     upd() do
         body()
     end

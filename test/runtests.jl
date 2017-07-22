@@ -57,6 +57,13 @@ push!(u, 40)
                     for tr in collect(compare_past_trace(tr, filter_out_equal=false))])
 
 
+# NoTraceable
+using TraceCalls
+@traceable foo(x) = x+2
+
+@test ctree_size(@trace foo(10)) == 2
+@test ctree_size(@trace (NoTraceable(),) foo(10)) == 1
+
 ################################################################################
 # Testing with popular packages
 import ClobberingReload

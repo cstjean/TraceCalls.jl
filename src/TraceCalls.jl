@@ -317,7 +317,8 @@ show_val(io::IO, mime::MIME"text/plain", x::Union{Bold, FontColor}) =
 
 function Base.show(io::IO, mime::MIME"text/html", tr::Trace)
     show_call(io::IO, mime, tr)
-    write(io, """<ul>""")
+    margin = "4px"  # a decent compromise, default is 9px
+    write(io, """<ul style="  margin-top: $margin; margin-bottom: $margin;">""")
     for called in tr.called
         write(io, "<li>")
         show(io, MIME"text/html"(), called)
@@ -400,7 +401,7 @@ end
 
 function show_call(io::IO, mime::MIME"text/html", ::Any, tr::Trace)
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    write(io, "<pre>")
+    write(io, """<pre style="display: inline">""")
     show_call_core(io, mime, tr)
     write(io, "</pre>")
 end

@@ -3,7 +3,8 @@
 [![Build Status](https://travis-ci.org/cstjean/TraceCalls.jl.svg?branch=master)](https://travis-ci.org/cstjean/TraceCalls.jl)
 
 TraceCalls.jl is a functional tracing package for debugging, exploring and profiling
-Julia code, built on top of [Revise.jl](https://github.com/timholy/Revise.jl)
+Julia code, built on top of [Revise.jl](https://github.com/timholy/Revise.jl). It
+supports the REPL, IJulia and Atom.
 
 # Installation
 

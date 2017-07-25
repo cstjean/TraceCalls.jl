@@ -317,17 +317,17 @@ show_val(io::IO, mime::MIME"text/plain", x::Union{Bold, FontColor}) =
 
 const largest_show_size = fill(100)
 
-function tree_very_large(tr::Trace)
+function is_tree_very_large(tr::Trace, warn=true)
     size = tree_size(tr)
-    if (r = (size > largest_show_size[] && largest_show_size[] > 0))
-        warn("Trace is very large (size $size > $(TraceCalls.largest_show_size[])); it was pruned before displaying. Enter `TraceCalls.largest_show_size[] = -1` to disable this behaviour.")
+    if (r = (size > largest_show_size[] && largest_show_size[] > 0)) && warn
+        Base.warn("Trace is very large (size $size > $(TraceCalls.largest_show_size[])); it was pruned before displaying. Enter `TraceCalls.largest_show_size[] = -1` to disable this behaviour.")
     end
     r
 end
 
 # Cut down tr until it's below largest_show_size
 function cut_tree_reasonable(tr::Trace)
-    s = Int(floor(sqrt(largest_show_size[]))) - 1
+    s = Int(floor(sqrt(largest_show_size[]))) # using sqrt is silly; should be log?
     while tree_size(tr) >= largest_show_size[]
         tr = prune(tr, s, s)
         s -= 1
@@ -336,7 +336,7 @@ function cut_tree_reasonable(tr::Trace)
 end
    
 function Base.show(io::IO, mime::MIME"text/html", tr::Trace)
-    if tree_very_large(tr) return show(io, mime, cut_tree_reasonable(tr)); end
+    if is_tree_very_large(tr) return show(io, mime, cut_tree_reasonable(tr)); end
     show_call(io::IO, mime, tr)
     margin = "4px"  # a decent compromise, default is 9px
     write(io, """<ul style="  margin-top: $margin; margin-bottom: $margin;">""")
@@ -351,7 +351,12 @@ end
 call_indentation = 3
 indent = 0
 function Base.show(io::IO, mime::MIME"text/plain", tr::Trace)
-    if tree_very_large(tr) return show(io, mime, cut_tree_reasonable(tr)); end
+    if is_tree_very_large(tr,
+                          # Avoid printing the warning twice in IJulia.
+                          # https://github.com/JuliaLang/IJulia.jl/issues/574
+                          !isdefined(Main, :IJulia))
+        return show(io, mime, cut_tree_reasonable(tr))
+    end
     write(io, string(" " ^ indent, "- "))
     show_call(io, mime, tr.func, tr)
     write(io, "\n")

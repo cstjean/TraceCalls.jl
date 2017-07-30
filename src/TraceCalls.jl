@@ -582,6 +582,7 @@ immutable IsEqual
 end
 
 iseql(isd::IsEqual) = iseql(isd.a, isd.b)
+iseql(tr::Trace) = iseql(tr.value)
 iseql(a::Nullable, b::Nullable) = isequal(a, b)
 iseql(a, b) = a == b
 function show_val(io::IO, mime::MIME"text/html", isd::IsEqual)
@@ -600,11 +601,12 @@ end
 
 """ `compare_past_trace(old_trace::Trace; filter_out_equal=true))` reruns every function
 call in `old_trace`, and shows in red where the new result differs from the old.  If
-`filter_out_equal==true`, only show the non-equal results. """
+`filter_out_equal==true`, only show the non-equal results. Override
+`TraceCalls.iseql(a, b)` to get custom comparisons. """
 function compare_past_trace(old_trace::Trace; filter_out_equal=true)
-    tr2 = map(old_trace) do sub_tr
-        IsEqual(sub_tr.value, get_error_or_value(sub_tr)) end
-    return filter_out_equal ? filter(subtr->!iseql(subtr.value), tr2) : tr2
+    tr2 = map(sub_tr->IsEqual(sub_tr.value, get_error_or_value(sub_tr)),
+              old_trace)
+    return filter_out_equal ? filter(!iseql, tr2) : tr2
 end
 
 end # module

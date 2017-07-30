@@ -12,7 +12,7 @@ using Base: url
 export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
-    is_mutating, REPR, filter_cutting, NoTraceable
+    is_mutating, REPR, filter_cutting, NoTraceable, trace_log
 
 include("code_update.jl")
 
@@ -608,5 +608,10 @@ function compare_past_trace(old_trace::Trace; filter_out_equal=true)
               old_trace)
     return filter_out_equal ? filter(!iseql, tr2) : tr2
 end
+
+""" `@traceable trace_log(args...; kwargs...) = nothing` is a dummy, always-traced
+function you can call to add extra information to your traces. For instance,
+`trace_log(:inside_foo; y=2, sqrt_of_x=sqrt(x))` """
+@traceable trace_log(args...; kwargs...) = nothing
 
 end # module

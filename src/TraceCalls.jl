@@ -250,15 +250,21 @@ function with_tracing_definitions(body::Function, obj)
     end
 end
 
+""" `get_error_or_value(f::Function)` runs `f()` in a try and returns either its outcome
+or the caught exception. """
+function get_error_or_value(f)
+    try
+        f()
+    catch e
+        e
+    end
+end
+
 """ `recording_trace(fun::Function)` sets up a fresh Trace in trace_data, then executes
 `fun` and returns the final Trace object """
 function recording_trace(fun::Function)
     copy!(trace_data, top_trace(fun))
-    try
-        trace_data.value = fun()
-    catch e
-        trace_data.value = e
-    end
+    trace_data.value = get_error_or_value(fun)
     res = copy(trace_data)
     copy!(trace_data, top_trace(fun)) # don't hang on to that memory unnecessarily
     res
@@ -597,7 +603,7 @@ call in `old_trace`, and shows in red where the new result differs from the old.
 `filter_out_equal==true`, only show the non-equal results. """
 function compare_past_trace(old_trace::Trace; filter_out_equal=true)
     tr2 = map(old_trace) do sub_tr
-        IsEqual(sub_tr.value, sub_tr()) end
+        IsEqual(sub_tr.value, get_error_or_value(sub_tr)) end
     return filter_out_equal ? filter(subtr->!iseql(subtr.value), tr2) : tr2
 end
 

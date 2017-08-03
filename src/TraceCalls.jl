@@ -534,11 +534,11 @@ end
 redgreen(x::Bool) = x ? "green" : "red"
 
 """ `redgreen(tr::Trace; map=identity)` colors all `value`s as shades of red/green, with
-`map(value) == 0/false` being pure red and `1/true` being pure green (so `map` can be
-used to normalize the values into that range). """
+`map(value) == 0/false` being pure red and `1/true` being pure green. `map` can be
+used to normalize the values into the `[0, 1]` range. """
 redgreen(tr::Trace; map=identity) =
     TraceCalls.map(sub->FontColor(redgreen(map(sub.value)), sub.value), tr)
-""" `greenred(tr::Trace)` is like `redgreen`, but with 0/false=green, 1/true=red. """
+""" `greenred(tr::Trace)` is like `redgreen`, but with 0/false->green, 1/true->red. """
 greenred(tr::Trace; map=identity) = redgreen(tr::Trace; map=x->1-map(x))
 
 Base.maximum(tr::Trace) = maximum(sub.value for sub in collect(tr))

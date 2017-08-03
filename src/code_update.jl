@@ -39,7 +39,7 @@ function Base.merge(cu1::CodeUpdate, cus::CodeUpdate...)
     md = ModDict()
     for cu in [cu1, cus...]
         for (mod::Module, set) in cu.md
-            md[mod] = union(get(md, mod, Set{RelocatableExpr}()), set)
+            md[mod] = union(get(md, mod, OrderedSet{RelocatableExpr}()), set)
         end
     end
     return CodeUpdate(md)
@@ -71,8 +71,8 @@ end
 is_empty_rex(rex::RelocatableExpr) = rex === empty_rex
 Base.map(fn::Function, cu::CodeUpdate) =
     CodeUpdate(ModDict(mod=>filter(rex->!is_empty_rex(rex),
-                                   Set{RelocatableExpr}(apply(fn, rex, mod)
-                                                        for rex in set_rex))
+                                   OrderedSet{RelocatableExpr}(apply(fn, rex, mod)
+                                                               for rex in set_rex))
                        for (mod, set_rex) in cu.md))
 Base.filter(fn::Function, cu::CodeUpdate) =
     map((expr, mod)->fn(expr, mod) ? expr : nothing, cu) #a lazy & wasteful implementation
@@ -92,8 +92,8 @@ function RevertibleCodeUpdate(fn::Function, current::CodeUpdate)
     md_apply = ModDict()
     md_revert = ModDict()
     for (mod, set_rex) in current.md
-        set_apply = Set{RelocatableExpr}()
-        set_revert = Set{RelocatableExpr}()
+        set_apply = OrderedSet{RelocatableExpr}()
+        set_revert = OrderedSet{RelocatableExpr}()
         for rex in set_rex
             apply_res = fn(convert(Expr, rex))
             if apply_res !== nothing
@@ -195,7 +195,7 @@ immutable UpdateInteractiveFailure
     fn::Union{Function, Type}
 end
 Base.show(io::IO, upd::UpdateInteractiveFailure) =
-    write(io, "Cannot find source of methods defined interactively ($(upd.fn)).")
+    write(io, "Cannot find source of some method of $(upd.fn). Perhaps it was defined interactively? Try adding `@traceable` in front of its definition.")
 
 immutable MissingMethodFailure
     count::Int
@@ -242,7 +242,7 @@ end
 function code_of(fn::Union{Function, Type}; when_missing=warn)::CodeUpdate
     if when_missing in (false, nothing); when_missing = _->nothing end
     function process(mod, file, correct_count)
-        if mod == Main
+        if mod == Main || file === nothing
             when_missing(UpdateInteractiveFailure(fn))
             return CodeUpdate()
         end
@@ -262,7 +262,6 @@ function code_of(fn::Union{Function, Type}; when_missing=warn)::CodeUpdate
         end
         rcu
     end
-    process(mod, file::Void, correct_count) = CodeUpdate()  # no file info, no update!
     return merge((process(mod, file, correct_count)
                   for ((mod, file), correct_count) in method_file_counts(fn))...)
 end

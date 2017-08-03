@@ -5,7 +5,7 @@ using Requires
 using MacroTools
 using Base.Test: @inferred
 using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
-using DataStructures: OrderedDict
+using DataStructures: OrderedDict, OrderedSet
 using Memoize
 using Base: url
 
@@ -198,7 +198,7 @@ macro traceable(fdef::Expr)
     
     traceable_definitions[signature] =
           RevertibleCodeUpdate(tracing_code,
-                               CodeUpdate(ModDict(mod=>Set([MakeRelocatableExpr(fdef)]))))
+                               CodeUpdate(ModDict(mod=>OrderedSet([MakeRelocatableExpr(fdef)]))))
 
     return esc(fdef)
 end

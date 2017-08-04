@@ -8,7 +8,7 @@ supports the REPL, [IJulia](https://github.com/JuliaLang/IJulia.jl) and [Atom](h
 # Installation
 
 ```julia
-Pkg.checkout("https://github.com/cstjean/TraceCalls.jl")
+Pkg.add("TraceCalls")
 ```
 
 # Documentation 
@@ -21,3 +21,7 @@ TraceCalls.jl imports [Revise.jl](https://github.com/timholy/Revise.jl),
 which triggers automatic reloading behaviour for subsequently-loaded packages. This
 should be fine for most users, but you can [turn it
 off](https://github.com/timholy/Revise.jl#manual-revision) if it's an issue.
+
+# Support
+
+TraceCalls.jl is still somewhat beta (with a few [known limitations](http://nbviewer.jupyter.org/github/cstjean/TraceCalls.jl/blob/master/README.ipynb#Syntax)). If you encounter any problem, please [file an issue](https://github.com/cstjean/TraceCalls.jl/issues), or [ask on Discourse](https://discourse.julialang.org/).

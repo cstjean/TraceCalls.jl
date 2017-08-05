@@ -382,7 +382,7 @@ function show_kwargs(io::IO, mime, kwargs)
     write(io, "; ")
     for (i, (sym, val)) in enumerate(kwargs)
         write(io, string(sym))
-        write(io, sym isa Symbol ? "=" : " = ")
+        write(io, sym isa Symbol ? "=" : " = ")  # to eventually support @tracelog
         show_val(io, mime, val)
         if i != length(kwargs) write(io, ", ") end
     end

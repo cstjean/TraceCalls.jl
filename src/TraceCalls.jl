@@ -12,7 +12,7 @@ using Base: url
 export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
-    is_mutating, REPR, filter_cutting, NoTraceable, trace_log
+    is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage
 
 include("code_update.jl")
 
@@ -53,6 +53,8 @@ mutable struct Trace
     value       # This is the return value of the func(args...) call, but it's also where
                 # the result of `map(f, ::Trace)` will be stored.
 end
+Trace(tr::Trace, called::Vector{Trace}) =  # convenience constructor
+    Trace(tr.func, tr.args, tr.kwargs, called, tr.value)
 
 function Base.copy!(dest::Trace, src::Trace)
     dest.func = src.func
@@ -379,8 +381,8 @@ end
 function show_kwargs(io::IO, mime, kwargs)
     write(io, "; ")
     for (i, (sym, val)) in enumerate(kwargs)
-        write(io, string(sym::Symbol))
-        write(io, "=")
+        write(io, string(sym))
+        write(io, sym isa Symbol ? "=" : " = ")
         show_val(io, mime, val)
         if i != length(kwargs) write(io, ", ") end
     end
@@ -468,21 +470,37 @@ show_val(io::IO, ::MIME"text/html", r::REPR) = write(io, r.html)
 
 ################################################################################
 
-""" `filter_cutting(f::Function, tr::Trace)` filters all subtraces (and their
+empty_trace() = nothing
+const empty_trace_dummy = Trace(empty_trace, (), (), [], nothing)
+
+""" `filter_cutting(f::Function, tr::Trace)` removes all subtraces (and their
 callees) for which `f(tr)` is false. """
 filter_cutting(f::Function, tr::Trace) =
-    Trace(tr.func, tr.args, tr.kwargs,
-          [filter_cutting(f, sub_tr) for sub_tr in tr.called if f(sub_tr)],
-          tr.value)
+    Trace(tr, Trace[filter_cutting(f, sub_tr) for sub_tr in tr.called if f(sub_tr)])
+
+""" `filter_lineage(f::Function, tr::Trace)` keeps all subtraces for which `f(::Trace)` is
+true of some of its descendents OR ancestors. """
+function filter_lineage(f::Function, tr::Trace)
+    if f(tr)
+        return tr
+    else
+        called0 = Trace[filter_lineage(f, sub_tr) for sub_tr in tr.called]
+        called = filter(c->c!=empty_trace_dummy, called0)
+        if isempty(called)
+            return empty_trace_dummy
+        else
+            return Trace(tr, called)
+        end
+    end
+end
+
 
 filter_descendents(f, tr) = # helper
     # Special casing because of #18852
-    isempty(tr.called) ? [] : [t for sub in tr.called for t in filter_(f, sub)]
+    isempty(tr.called) ? Trace[] : Trace[t for sub in tr.called for t in filter_(f, sub)]
 filter_(f, tr) =
-    f(tr) ? [Trace(tr.func, tr.args, tr.kwargs, filter_descendents(f, tr),
-                   tr.value)] : filter_descendents(f, tr)
-Base.filter(f::Function, tr::Trace) =
-    Trace(tr.func, tr.args, tr.kwargs, filter_descendents(f, tr), tr.value)
+    f(tr) ? [Trace(tr, filter_descendents(f, tr))] : filter_descendents(f, tr)
+Base.filter(f::Function, tr::Trace) = Trace(tr, filter_descendents(f, tr))
 
 """ `filter_func(functions::Vector, tr::Trace)` keeps only Trace objects whose function
 is one of `functions` """
@@ -496,10 +514,9 @@ Base.collect(tr::Trace) = Trace[tr; mapreduce(collect, vcat, [], tr.called)]
 maximum tree depth, and maximum length (number of branches in each node). 
 (convenient to first explore a trace at a high-level) """
 prune(tr::Trace, max_depth::Int, max_length::Int=1000000000) =
-    Trace(tr.func, tr.args, tr.kwargs,
-          [prune(sub_tr, max_depth-1, max_length)
-           for sub_tr in tr.called[1:min(length(tr), max_length)] if max_depth > 0],
-          tr.value)
+    Trace(tr, Trace[prune(sub_tr, max_depth-1, max_length)
+                    for sub_tr in tr.called[1:min(length(tr), max_length)]
+                    if max_depth > 0])
 
 is_mutating(tr::Trace) = is_mutating(tr.func)
 is_mutating(f::Function) = last(string(f)) == '!'

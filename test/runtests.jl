@@ -64,6 +64,19 @@ using TraceCalls
 @test ctree_size(@trace foo(10)) == 2
 @test ctree_size(@trace (NoTraceable(),) foo(10)) == 1
 
+
+# filtering
+@traceable f1(x) = f2(x) + f3(x)
+@traceable f2(x) = x-10
+@traceable f3(x) = f4(x)+20
+@traceable f4(x) = 2*x
+tr = @trace f1(5) + f4(10)
+@test ctree_size(filter_lineage(sub->sub.func==f3, tr)) == 4
+@test ctree_size(filter(sub->sub.func==f3, tr)) == 2
+@test ctree_size(filter_cutting(sub->sub.func!=f3, tr)) == 4
+
+
+
 ################################################################################
 # Testing with popular packages
 import ClobberingReload

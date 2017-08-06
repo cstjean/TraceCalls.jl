@@ -295,6 +295,8 @@ const tab_def = """<style type="text/css">
 -->
 </style>"""
 
+""" `FontColor(:red, 15)` will display the value 15 in the color red (in HTML-capable
+environments) """
 struct FontColor
     color
     content

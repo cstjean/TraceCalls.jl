@@ -617,6 +617,17 @@ function show_val(io::IO, mime::MIME"text/html", isd::IsEqual)
     end
     write(io, """</font>""")
 end
+function show_val(io::IO, mime::MIME"text/plain", isd::IsEqual)
+    if iseql(isd)
+        write(io, "Same: ")
+        show_val(io, mime, isd.a)
+    else
+        write(io, "before: ")
+        show_val(io, mime, isd.a)
+        write(io, " vs. now: ")
+        show_val(io, mime, isd.b)
+    end
+end
 
 """ `compare_past_trace(old_trace::Trace; filter_out_equal=true))` reruns every function
 call in `old_trace`, and shows in red where the new result differs from the old.  If

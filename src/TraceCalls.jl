@@ -299,7 +299,7 @@ const tab_def = """<style type="text/css">
 function with_crayon(f::Function, io::IO, cr::Crayon)
     print(io, cr)
     try
-        f
+        f()
     finally
         print(io, inv(cr))
     end
@@ -325,7 +325,7 @@ function show_val(io::IO, mime::MIME"text/html", x::FontColor)
 end
 crayon_color(c::String) = Symbol(c)
 to_int8(frac::AbstractFloat) = round(UInt8, frac*255)
-crayon_color(c::NTuple{3, AbstractFloat}) = map(to_int8, c)
+crayon_color(c::NTuple{3, AbstractFloat}) = map(Int ∘ to_int8, c)
 crayon_color(c::NTuple{3, Integer}) = c
 
 function show_val(io::IO, mime::MIME"text/plain", x::FontColor)
@@ -653,12 +653,15 @@ function show_val(io::IO, mime::MIME"text/plain", isd::IsEqual)
     else
         with_crayon(io, Crayon(foreground=:red)) do
             with_crayon(io, Crayon(underline=true)) do
-                write(io, "before: ")
+                write(io, "before")
             end
+            write(io, ": ")
             show_val(io, mime, isd.a)
+            write(io, " ")
             with_crayon(io, Crayon(underline=true)) do
-                write(io, " vs. now: ")
+                write(io, "vs. now")
             end
+            write(io, ": ")
             show_val(io, mime, isd.b)
         end
     end

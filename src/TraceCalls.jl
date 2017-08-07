@@ -8,6 +8,7 @@ using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
 using DataStructures: OrderedDict, OrderedSet
 using Memoize
 using Base: url
+using Crayons: Crayon, inv
 
 export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
@@ -295,35 +296,62 @@ const tab_def = """<style type="text/css">
 -->
 </style>"""
 
+function with_crayon(f::Function, io::IO, cr::Crayon)
+    print(io, cr)
+    try
+        f
+    finally
+        print(io, inv(cr))
+    end
+end
+
 """ `FontColor(:red, 15)` will display the value 15 in the color red (in HTML-capable
 environments) """
 struct FontColor
     color
     content
 end
+show_return_val(io::IO, mime, x::Exception) = show_val(io, mime, FontColor("red", x))
+""" `TraceCalls.show_val(io::IO, mime, x)` is the HTML used by `TraceCalls` to display
+each value (arguments and return values). Customize it by overloading. Defaults to
+`show(io, x)`. """
+show_val(io::IO, _, x) = show(io, x)
+html_color(c) = c
+html_color(c::NTuple{3, AbstractFloat}) = bytes2hex([map(to_int8, c)...])
+function show_val(io::IO, mime::MIME"text/html", x::FontColor)
+    write(io, """<font color=$(html_color(x.color))>""")
+    show_val(io, mime, x.content)
+    write(io, """</font>""")
+end
+crayon_color(c::String) = Symbol(c)
+to_int8(frac::AbstractFloat) = round(UInt8, frac*255)
+crayon_color(c::NTuple{3, AbstractFloat}) = map(to_int8, c)
+crayon_color(c::NTuple{3, Integer}) = c
+
+function show_val(io::IO, mime::MIME"text/plain", x::FontColor)
+    with_crayon(io, Crayon(foreground=crayon_color(x.color))) do
+        show_val(io, mime, x.content)
+    end
+end
+
 struct Bold
     content
 end
 """ `TraceCalls.show_return_val(io::IO, mime, x)` is the function used by `TraceCalls` to
 display each return value. Defaults to calling `show_val`. """
 show_return_val(io::IO, mime, x) =  show_val(io, mime, Bold(FontColor("green", x)))
-show_return_val(io::IO, mime, x::Exception) = show_val(io, mime, FontColor("red", x))
-""" `TraceCalls.show_val(io::IO, mime, x)` is the HTML used by `TraceCalls` to display
-each value (arguments and return values). Customize it by overloading. Defaults to
-`show(io, x)`. """
-show_val(io::IO, _, x) = show(io, x)
-function show_val(io::IO, mime::MIME"text/html", x::FontColor)
-    write(io, """<font color=$(x.color)>""")
-    show_val(io, mime, x.content)
-    write(io, """</font>""")
-end
+
 function show_val(io::IO, mime::MIME"text/html", x::Bold)
     write(io, "<b>")
     show_val(io, mime, x.content)
     write(io, "</b>")
 end
-show_val(io::IO, mime::MIME"text/plain", x::Union{Bold, FontColor}) =
-    show_val(io, mime, x.content)
+function show_val(io::IO, mime::MIME"text/plain", x::Bold)
+    with_crayon(io, Crayon(bold=true)) do
+        show_val(io, mime, x.content)
+    end
+end
+
 
 const largest_show_size = fill(100)
 
@@ -546,9 +574,8 @@ end
 
 function redgreen(x::Number)
     # red is ff0000, of course...
-    hex(frac) = round(UInt8, frac*255)
     f = clamp(x, 0.0, 1.0) * 1.0
-    return bytes2hex([hex(1-f), hex(f), UInt8(0)])
+    return (1-f, f, 0.0)
 end
 redgreen(x::Bool) = x ? "green" : "red"
 
@@ -619,13 +646,21 @@ function show_val(io::IO, mime::MIME"text/html", isd::IsEqual)
 end
 function show_val(io::IO, mime::MIME"text/plain", isd::IsEqual)
     if iseql(isd)
-        write(io, "Same: ")
-        show_val(io, mime, isd.a)
+        with_crayon(io, Crayon(foreground=:green)) do
+            write(io, "Same: ")
+            show_val(io, mime, isd.a)
+        end
     else
-        write(io, "before: ")
-        show_val(io, mime, isd.a)
-        write(io, " vs. now: ")
-        show_val(io, mime, isd.b)
+        with_crayon(io, Crayon(foreground=:red)) do
+            with_crayon(io, Crayon(underline=true)) do
+                write(io, "before: ")
+            end
+            show_val(io, mime, isd.a)
+            with_crayon(io, Crayon(underline=true)) do
+                write(io, " vs. now: ")
+            end
+            show_val(io, mime, isd.b)
+        end
     end
 end
 

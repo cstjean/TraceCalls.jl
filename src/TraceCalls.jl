@@ -17,7 +17,6 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
 
 include("code_update.jl")
 
-const revertible_definitions = RevertibleCodeUpdate[]
 const traceable_definitions = OrderedDict()  # We use an OrderedDict because in case we
                                              # accidentally store the same definition
                                              # twice, at least the latter one takes

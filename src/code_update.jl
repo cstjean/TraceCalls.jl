@@ -28,7 +28,7 @@ end
 
 ################################################################################
 
-immutable CodeUpdate
+struct CodeUpdate
     md::ModDict
 end
 CodeUpdate() = CodeUpdate(ModDict())
@@ -81,7 +81,7 @@ Base.filter(fn::Function, cu::CodeUpdate) =
 to modify a module, and revert it back to its former state. Use `apply_code!` and
 `revert_code!`, or `(::RevertibleCodeUpdate)() do ... end` to temporarily apply the code.
 """
-immutable RevertibleCodeUpdate
+struct RevertibleCodeUpdate
     apply::CodeUpdate
     revert::CodeUpdate
 end
@@ -191,13 +191,13 @@ method_file_counts(fn_to_change) =
             for (mod, file, line) in Set((m.module, functionloc(m)...)
                                          for m in methods(fn_to_change).ms))
 
-immutable UpdateInteractiveFailure
+struct UpdateInteractiveFailure
     fn::Union{Function, Type}
 end
 Base.show(io::IO, upd::UpdateInteractiveFailure) =
     write(io, "Cannot find source of some method of $(upd.fn). Perhaps it was defined interactively? Try adding `@traceable` in front of its definition.")
 
-immutable MissingMethodFailure
+struct MissingMethodFailure
     count::Int
     correct_count::Int
     fn::Union{Function, Type}

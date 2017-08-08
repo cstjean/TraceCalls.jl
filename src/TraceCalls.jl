@@ -66,7 +66,7 @@ end
 
 tree_size(tr::Trace) = 1 + mapreduce(tree_size, +, 0, tr.called)
 Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.value)
-immutable NotReturned end   # special flag value
+struct NotReturned end   # special flag value
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int) = tr.called[i]
 Base.getindex(tr::Trace, i::Int, j::Int, args...) = tr.called[i][j, args...]
@@ -621,7 +621,7 @@ end
 
 ################################################################################
 
-immutable IsEqual
+struct IsEqual
     a
     b
 end

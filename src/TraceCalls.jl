@@ -310,16 +310,25 @@ struct FontColor
     color
     content
 end
-show_return_val(io::IO, mime, x::Exception) = show_val(io, mime, FontColor("red", x))
+show_return_val(io::IO, mime, x::Exception) = try_show_val(io, mime, FontColor("red", x))
 """ `TraceCalls.show_val(io::IO, mime, x)` is the HTML used by `TraceCalls` to display
 each value (arguments and return values). Customize it by overloading. Defaults to
 `show(io, x)`. """
 show_val(io::IO, _, x) = show(io, x)
+try_show_val(io::IO, m::MIME"text/html", x::T) where T =
+    @ignore_errors(write(io, "<font color=orange>&lterror displaying $T instance&gt</font>"),
+                  show_val(io, m, x))
+try_show_val(io::IO, m::MIME"text/plain", x::T) where T =
+    @ignore_errors(print(io, Crayon(foreground=:light_red),
+                         "<error displaying $T instance>",
+                         inv(Crayon(foreground=:light_red))),
+                   show_val(io, m, x))
+
 html_color(c) = c
 html_color(c::NTuple{3, AbstractFloat}) = bytes2hex([map(to_int8, c)...])
 function show_val(io::IO, mime::MIME"text/html", x::FontColor)
     write(io, """<font color=$(html_color(x.color))>""")
-    show_val(io, mime, x.content)
+    try_show_val(io, mime, x.content)
     write(io, """</font>""")
 end
 crayon_color(c::String) = Symbol(c)
@@ -329,7 +338,7 @@ crayon_color(c::NTuple{3, Integer}) = c
 
 function show_val(io::IO, mime::MIME"text/plain", x::FontColor)
     with_crayon(io, Crayon(foreground=crayon_color(x.color))) do
-        show_val(io, mime, x.content)
+        try_show_val(io, mime, x.content)
     end
 end
 
@@ -338,16 +347,16 @@ struct Bold
 end
 """ `TraceCalls.show_return_val(io::IO, mime, x)` is the function used by `TraceCalls` to
 display each return value. Defaults to calling `show_val`. """
-show_return_val(io::IO, mime, x) =  show_val(io, mime, Bold(FontColor("green", x)))
+show_return_val(io::IO, mime, x) = try_show_val(io, mime, Bold(FontColor("green", x)))
 
 function show_val(io::IO, mime::MIME"text/html", x::Bold)
     write(io, "<b>")
-    show_val(io, mime, x.content)
+    try_show_val(io, mime, x.content)
     write(io, "</b>")
 end
 function show_val(io::IO, mime::MIME"text/plain", x::Bold)
     with_crayon(io, Crayon(bold=true)) do
-        show_val(io, mime, x.content)
+        try_show_val(io, mime, x.content)
     end
 end
 
@@ -412,13 +421,13 @@ function show_kwargs(io::IO, mime, kwargs)
     for (i, (sym, val)) in enumerate(kwargs)
         write(io, string(sym))
         write(io, sym isa Symbol ? "=" : " = ")  # to eventually support @tracelog
-        show_val(io, mime, val)
+        try_show_val(io, mime, val)
         if i != length(kwargs) write(io, ", ") end
     end
 end
 function show_args(io::IO, mime, args)
     for (i, arg) in enumerate(args)
-        show_val(io, mime, arg)
+        try_show_val(io, mime, arg)
         if i != length(args) write(io, ", ") end
     end
 end
@@ -489,9 +498,9 @@ struct REPR
     html
     function REPR(x)
         s_text = 
-        s_html = IOBuffer(); show_val(s_html, MIME"text/html"(), x)
-        new(get_io_output() do io; show_val(io, MIME"text/plain"(), x) end,
-            get_io_output() do io; show_val(io, MIME"text/html"(), x) end)
+        s_html = IOBuffer(); try_show_val(s_html, MIME"text/html"(), x)
+        new(get_io_output() do io; try_show_val(io, MIME"text/plain"(), x) end,
+            get_io_output() do io; try_show_val(io, MIME"text/html"(), x) end)
     end
 end
 show_val(io::IO, ::MIME"text/plain", r::REPR) = write(io, r.text)
@@ -634,12 +643,12 @@ function show_val(io::IO, mime::MIME"text/html", isd::IsEqual)
     write(io, """<font color=$(redgreen(iseql(isd)))>""")
     if iseql(isd)
         write(io, "Same: ")
-        show_val(io, mime, isd.a)
+        try_show_val(io, mime, isd.a)
     else
         write(io, "<u>before</u>: ")
-        show_val(io, mime, isd.a)
+        try_show_val(io, mime, isd.a)
         write(io, " <u>vs. now:</u> ")
-        show_val(io, mime, isd.b)
+        try_show_val(io, mime, isd.b)
     end
     write(io, """</font>""")
 end
@@ -647,7 +656,7 @@ function show_val(io::IO, mime::MIME"text/plain", isd::IsEqual)
     if iseql(isd)
         with_crayon(io, Crayon(foreground=:green)) do
             write(io, "Same: ")
-            show_val(io, mime, isd.a)
+            try_show_val(io, mime, isd.a)
         end
     else
         with_crayon(io, Crayon(foreground=:red)) do
@@ -655,13 +664,13 @@ function show_val(io::IO, mime::MIME"text/plain", isd::IsEqual)
                 write(io, "before")
             end
             write(io, ": ")
-            show_val(io, mime, isd.a)
+            try_show_val(io, mime, isd.a)
             write(io, " ")
             with_crayon(io, Crayon(underline=true)) do
                 write(io, "vs. now")
             end
             write(io, ": ")
-            show_val(io, mime, isd.b)
+            try_show_val(io, mime, isd.b)
         end
     end
 end

@@ -3,8 +3,8 @@ module TraceCalls
 
 using Requires
 using MacroTools
+using MacroTools: combinedef, combinearg, longdef1
 using Base.Test: @inferred
-using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
 using DataStructures: OrderedDict, OrderedSet
 using Memoize
 using Base: url
@@ -75,6 +75,10 @@ Base.url(tr::Trace) = @ignore_errors "" Base.url(which(tr))
 Base.which(tr::Trace) = apply_macro(:@which, tr)
 Base.less(tr::Trace) = apply_macro(:@less, tr)
 Base.edit(tr::Trace) = apply_macro(:@edit, tr)
+Base.sum(f::Function, tr::Trace) = sum(f, collect(tr))
+Base.sum(tr::Trace) = sum(t->t.value, tr)
+Base.all(f::Function, tr::Trace) = all(f, collect(tr))
+Base.all(tr::Trace) = all(t->t.value, collect(tr))
 # I've disabled iteration because it doesn't align with our desired `Base.map`'s
 # behaviour, and it's kinda useless anyway.
 # Base.start(tr::Trace) = 1
@@ -239,6 +243,11 @@ traceable_macro_update() = merge(EmptyRevertibleCodeUpdate(),
 functions. """
 struct NoTraceable end
 traceable_update(::NoTraceable) = EmptyRevertibleCodeUpdate()
+""" `traceable_update_code(x)` returns the code of the update. For debugging. """
+traceable_update_code(x) =
+    map(to_expr, collect(reduce(merge, collect(values(traceable_update(x).apply.md)))))
+traceable_update_revert_code(x) =
+    map(to_expr, collect(reduce(merge, collect(values(traceable_update(x).revert.md)))))
 
 
 function with_tracing_definitions(body::Function, obj)
@@ -605,7 +614,9 @@ Base.normalize(tr::Trace, div=tr.value) =
             threshold=0)`
 
 Apply `mac_or_fun` to every function call in `tr`, with a `green->red` color scheme.
-Remove all function calls whose result is below `threshold`. """
+Remove all function calls whose result is below `threshold`. `measure` runs `tr()` first
+to get rid of the compile time, but that is by not always sufficient. Call `measure`
+twice for best accuracy. """
 function measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false,
                  threshold=0)
     tr() # run it once, to get the JIT behind us

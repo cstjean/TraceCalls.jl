@@ -9,11 +9,13 @@ using DataStructures: OrderedDict, OrderedSet
 using Memoize
 using Base: url
 using Crayons: Crayon, inv
+import Base: -
 
 export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
-    is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage
+    is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
+    bottom
 
 include("code_update.jl")
 
@@ -68,8 +70,8 @@ tree_size(tr::Trace) = 1 + mapreduce(tree_size, +, 0, tr.called)
 Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.value)
 struct NotReturned end   # special flag value
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
-Base.getindex(tr::Trace, i::Int) = tr.called[i]
-Base.getindex(tr::Trace, i::Int, j::Int, args...) = tr.called[i][j, args...]
+Base.getindex(tr::Trace, i::Int, args...) = tr.called[i][args...]
+Base.getindex(tr::Trace) = tr
 Base.length(tr::Trace) = length(tr.called)
 Base.url(tr::Trace) = @ignore_errors "" Base.url(which(tr))
 Base.which(tr::Trace) = apply_macro(:@which, tr)
@@ -85,6 +87,16 @@ Base.all(tr::Trace) = all(t->t.value, collect(tr))
 # Base.next(tr::Trace, i::Int) = (tr[i], i+1)
 # Base.done(tr::Trace, i::Int) = i == length(tr)+1
 (tr::Trace)() = tr.func(tr.args...; tr.kwargs...)
+
+struct Bottom
+    delta::Int   # a positive number
+end
+const bottom = Bottom(0)
+-(bot::Bottom, d) = Bottom(bot.delta + d)
+Base.getindex(tr::Trace, bot::Bottom, args...) =
+    (depth(tr) <= bot.delta + 1) ? tr[args...] : tr.called[1][bot, args...]
+depth(tr::Trace) = isempty(tr.called) ? 1 : 1 + maximum(depth, tr.called)
+
 apply_macro(mac::Symbol, tr::Trace, mod::Module=Main) =
     eval(mod, Expr(:macrocall, mac,
                    (isempty(tr.kwargs) ?

@@ -170,7 +170,9 @@ end
 # Return the list of files in `mod`
 # Memoizing is technically wrong, since the user could conceivably add a file.
 # This seems OK until Revise.jl provides module_files
-@memoize ObjectIdDict module_files(mod::Module) = Revise.parse_pkg_files(Symbol(mod))
+@memoize ObjectIdDict module_files(mod::Module) =
+    # copy because Revise.jl aggressively reuses objects
+    copy(Revise.parse_pkg_files(Symbol(mod)))
 
 code_of(mod::Module) = 
     merge((code_of(mod, file) for file in module_files(mod))...)

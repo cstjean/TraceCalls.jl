@@ -245,7 +245,8 @@ struct NoTraceable end
 traceable_update(::NoTraceable) = EmptyRevertibleCodeUpdate()
 """ `traceable_update_code(x)` returns the code of the update. For debugging. """
 traceable_update_code(x) =
-    map(to_expr, collect(reduce(merge, collect(values(traceable_update(x).apply.md)))))
+    map(to_expr, collect(reduce((s1,s2)->OrderedSet([collect(s1); collect(s2)]),
+                                collect(values(traceable_update(x).apply.md)))))
 traceable_update_revert_code(x) =
     map(to_expr, collect(reduce(merge, collect(values(traceable_update(x).revert.md)))))
 

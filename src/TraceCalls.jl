@@ -16,7 +16,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
-    bottom
+    bottom, highlight
 
 include("code_update.jl")
 
@@ -366,6 +366,21 @@ function show_val(io::IO, mime::MIME"text/plain", x::FontColor)
     end
 end
 
+""" When `Highlight(content, color)` is in the `.value` field, it highlights the whole
+call. """
+struct Highlight
+    # It's a bit kludgey to implement highlighting this way; maybe there should be a
+    # `Trace.highlight` field instead?
+    color
+    content
+end
+Highlight(content) = Highlight(:cyan, content)
+show_val(io::IO, mime, h::Highlight) = show_val(io, mime, h.content)
+""" `highlight(pred, tr::Trace)` highlights every part of the trace for which
+`pred(tr)` is true. """
+highlight(pred::Function, tr::Trace) = map(t->maybe_highlight(pred(t), t.value), tr)
+maybe_highlight(ishigh::Bool, val) = ishigh ? Highlight(val) : val
+
 struct Bold
     content
 end
@@ -496,15 +511,21 @@ function show_call_core(io, mime, tr)
     show_return_val(io, mime, tr.value)
 end
 
+is_highlighted(tr::Trace) = tr.value isa Highlight
+highlight_color(tr::Trace) = tr.value.color
 function show_call(io::IO, mime::MIME"text/html", ::Any, tr::Trace)
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    write(io, """<pre style="display: inline">""")
+    background = is_highlighted(tr) ? "background-color:$(highlight_color(tr))" : ""
+    write(io, """<pre style="display: inline; $background">""")
     show_call_core(io, mime, tr)
     write(io, "</pre>")
 end
 
 show_call(io::IO, mime::MIME"text/plain", ::Any, tr::Trace) =
-    show_call_core(io, mime, tr)
+    with_crayon(io,
+                is_highlighted(tr) ? Crayon(background=highlight_color(tr)) : Crayon()) do
+        show_call_core(io, mime, tr)
+    end
 show_call(io::IO, mime, tr::Trace) = show_call(io, mime, tr.func, tr)
 
 call_html(tr::Trace) = get_io_output(io->show_call(io, MIME"text/html"(), tr))
@@ -540,20 +561,18 @@ callees) for which `f(tr)` is false. """
 filter_cutting(f::Function, tr::Trace) =
     Trace(tr, Trace[filter_cutting(f, sub_tr) for sub_tr in tr.called if f(sub_tr)])
 
-""" `filter_lineage(f::Function, tr::Trace)` keeps all subtraces for which `f(::Trace)` is
-true of some of its descendents OR ancestors. """
-function filter_lineage(f::Function, tr::Trace)
+""" `filter_lineage(f::Function, tr::Trace; highlight=true)` keeps all subtraces for
+which `f(::Trace)` is true of some of its descendents OR ancestors. """
+function filter_lineage(f::Function, tr::Trace; highlight=true)
     if f(tr)
-        return tr
+        res = tr
     else
-        called0 = Trace[filter_lineage(f, sub_tr) for sub_tr in tr.called]
+        called0 = Trace[filter_lineage(f, sub_tr; highlight=false)
+                        for sub_tr in tr.called]
         called = filter(c->c!=empty_trace_dummy, called0)
-        if isempty(called)
-            return empty_trace_dummy
-        else
-            return Trace(tr, called)
-        end
+        res = isempty(called) ? empty_trace_dummy : Trace(tr, called)
     end
+    return highlight ? TraceCalls.highlight(f, res) : res
 end
 
 

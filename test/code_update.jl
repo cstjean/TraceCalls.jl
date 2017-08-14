@@ -16,7 +16,7 @@ counter = fill(0)
 function add_counter(fdef)
     di = ClobberingReload.splitdef(fdef)
     di[:body] = quote $counter .+= 1; $(di[:body]) end
-    MacroTools.combinedef(di)
+    TraceCalls.combinedef(di)
 end
 upd_high = update_code_revertible(AA.high) do code
     add_counter(code)

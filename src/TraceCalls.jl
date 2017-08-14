@@ -83,6 +83,24 @@ Base.sum(f::Function, tr::Trace) = sum(f, collect(tr))
 Base.sum(tr::Trace) = sum(t->t.value, tr)
 Base.all(f::Function, tr::Trace) = all(f, collect(tr))
 Base.all(tr::Trace) = all(t->t.value, collect(tr))
+arg_names(method::Method) = [Symbol(first(a))
+                             for a in Base.arg_decl_parts(method)[2][2:end]
+                             if first(a)!=""]
+arg_names(tr::Trace) = arg_names(which(tr))  # positional arguments only
+function Base.get(tr::Trace, arg::Symbol, default)
+    if (i = findfirst(a->a==arg, arg_names(tr))) > 0
+        tr.args[i]
+    elseif (k = findfirst(p->p[1]==arg, tr.kwargs)) > 0
+        tr.kwargs[k][2]
+    else
+        default
+    end
+end
+struct Dummy end
+Base.getindex(tr::Trace, arg::Symbol) =
+    (r=Base.get(tr, arg, Dummy())) == Dummy() ? throw(KeyError(arg)) : r
+Base.keys(tr::Trace) = [arg_names(tr)...; map(first, tr.kwargs)...]
+            
 # I've disabled iteration because it doesn't align with our desired `Base.map`'s
 # behaviour, and it's kinda useless anyway.
 # Base.start(tr::Trace) = 1

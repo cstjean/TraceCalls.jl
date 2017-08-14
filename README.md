@@ -2,8 +2,7 @@
 
 [![Build Status](https://travis-ci.org/cstjean/TraceCalls.jl.svg?branch=master)](https://travis-ci.org/cstjean/TraceCalls.jl)
 
-TraceCalls.jl is a functional tracing package for [debugging](http://nbviewer.jupyter.org/github/cstjean/TraceCalls.jl/blob/master/README.ipynb#Debugging-with-traces), [profiling](http://nbviewer.jupyter.org/github/cstjean/TraceCalls.jl/blob/master/README.ipynb#Profiling) and exploring Julia code, built on top of [Revise.jl](https://github.com/timholy/Revise.jl). It
-supports the REPL, [IJulia](https://github.com/JuliaLang/IJulia.jl) and [Atom](http://junolab.org/).
+TraceCalls.jl is a functional tracing package for [exploring](http://nbviewer.jupyter.org/github/cstjean/TraceCalls.jl/blob/master/README.ipynb#Manipulating-traces), [debugging](http://nbviewer.jupyter.org/github/cstjean/TraceCalls.jl/blob/master/README.ipynb#Debugging-with-traces) and [profiling](http://nbviewer.jupyter.org/github/cstjean/TraceCalls.jl/blob/master/README.ipynb#Profiling) Julia code, built on top of [Revise.jl](https://github.com/timholy/Revise.jl). It supports the REPL, [IJulia](https://github.com/JuliaLang/IJulia.jl) and [Atom](http://junolab.org/).
 
 # Installation
 

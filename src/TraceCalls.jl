@@ -392,7 +392,7 @@ struct Highlight
     color
     content
 end
-Highlight(content) = Highlight(:cyan, content)
+Highlight(content) = Highlight(:default, content)
 show_val(io::IO, mime, h::Highlight) = show_val(io, mime, h.content)
 """ `highlight(pred, tr::Trace)` highlights every part of the trace for which
 `pred(tr)` is true. """
@@ -530,20 +530,24 @@ function show_call_core(io, mime, tr)
 end
 
 is_highlighted(tr::Trace) = tr.value isa Highlight
-highlight_color(tr::Trace) = tr.value.color
+highlight_default(mime::MIME"text/html") = :greenyellow
+highlight_default(mime::MIME"text/plain") = :light_gray
+highlight_color(tr::Trace, mime) =
+    tr.value.color == :default ? highlight_default(mime) : tr.value.color
 function show_call(io::IO, mime::MIME"text/html", ::Any, tr::Trace)
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
-    background = is_highlighted(tr) ? "background-color:$(highlight_color(tr))" : ""
+    background = is_highlighted(tr) ? "background-color:$(highlight_color(tr, mime))" : ""
     write(io, """<pre style="display: inline; $background">""")
     show_call_core(io, mime, tr)
     write(io, "</pre>")
 end
 
-show_call(io::IO, mime::MIME"text/plain", ::Any, tr::Trace) =
-    with_crayon(io,
-                is_highlighted(tr) ? Crayon(background=highlight_color(tr)) : Crayon()) do
+function show_call(io::IO, mime::MIME"text/plain", ::Any, tr::Trace)
+    cr = is_highlighted(tr) ? Crayon(background=highlight_color(tr, mime)) : Crayon()
+    with_crayon(io, cr) do
         show_call_core(io, mime, tr)
     end
+end
 show_call(io::IO, mime, tr::Trace) = show_call(io, mime, tr.func, tr)
 
 call_html(tr::Trace) = get_io_output(io->show_call(io, MIME"text/html"(), tr))

@@ -2,4 +2,5 @@
 *.jl.cov
 *.jl.mem
 /.ipynb_checkpoints
+/README-Copy1.ipynb
 /Testing_Packages.ipynb

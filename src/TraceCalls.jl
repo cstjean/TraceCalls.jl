@@ -74,6 +74,7 @@ Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int, args...) = tr.called[i][args...]
 Base.getindex(tr::Trace) = tr
 Base.length(tr::Trace) = length(tr.called)
+Base.endof(tr::Trace) = length(tr)
 Base.url(tr::Trace) = @ignore_errors "" Base.url(which(tr))
 Base.which(tr::Trace) = apply_macro(:@which, tr)
 Base.less(tr::Trace) = apply_macro(:@less, tr)

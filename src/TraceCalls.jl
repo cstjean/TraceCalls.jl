@@ -3,7 +3,8 @@ module TraceCalls
 
 using Requires
 using MacroTools
-using MacroTools: combinedef, combinearg, longdef1
+#using MacroTools: combinedef, combinearg, longdef1
+using ClobberingReload: combinedef, combinearg, longdef1
 using Base.Test: @inferred
 using DataStructures: OrderedDict, OrderedSet
 using Memoize

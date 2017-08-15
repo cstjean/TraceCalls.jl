@@ -692,12 +692,19 @@ function measure(mac_or_fun::Union{Expr, Function}, trace::Trace; normalize=fals
                  threshold=0)
     f = handle_mac(mac_or_fun)
     trace() # run it once, to get (at least some of) the JIT behind us
-    top_value = Dummy()
-    tr2 = map_filter(x->x>=threshold, trace) do tr
-        res = f(tr)
-        if top_value === Dummy(); top_value = res; end
-        return normalize ? signif(res / top_value, 4) : res
+    top_value = f(trace)
+    function trav(tr, res)
+        new_called = Trace[]
+        for t in tr.called
+            t_res = f(t)
+            if normalize t_res /= top_value end
+            if t_res >= threshold
+                push!(new_called, trav(t, t_res))
+            end
+        end
+        return Trace(tr.func, tr.args, tr.kwargs, new_called, res)
     end
+    tr2 = trav(trace, top_value)
     return greenred(tr2; map=x->x/tr2.value)
 end
 

@@ -682,29 +682,38 @@ Base.normalize(tr::Trace, div=tr.value) = map(sub->sub.value / div, tr)
 
 """
     measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false,
-            threshold=0)`
+            threshold=0, explore_worst=false)`
 
 Apply `mac_or_fun` to every function call in `tr`, with a `green->red` color scheme.
 Remove all function calls whose result is below `threshold`. `measure` runs `tr()` first
 to get rid of the compile time, but that is by not always sufficient. Call `measure`
-twice for best accuracy (esp. with `@allocated`). """
+twice for best accuracy (esp. with `@allocated`).
+
+When `explore_worst=true`, `measure` will only expand the worst child of each call.
+This is a useful way of quickly exploring a trace that would be too large to profile
+otherwise.
+"""
 function measure(mac_or_fun::Union{Expr, Function}, trace::Trace; normalize=false,
-                 threshold=0)
+                 threshold=0, explore_worst=false)
     f = handle_mac(mac_or_fun)
     trace() # run it once, to get (at least some of) the JIT behind us
     top_value = f(trace)
+    norm(x) = normalize ? (x / top_value) : x
     function trav(tr, res)
         new_called = Trace[]
-        for t in tr.called
-            t_res = f(t)
-            if normalize t_res /= top_value end
+        called_res = map(norm∘f, tr.called)
+        worst = isempty(tr.called) ? nothing : maximum(called_res)
+        for (t, t_res) in zip(tr.called, called_res)
             if t_res >= threshold
-                push!(new_called, trav(t, t_res))
+                push!(new_called,
+                      ((!explore_worst || t_res == worst) ?
+                       trav(t, t_res) :
+                       Trace(t.func, t.args, t.kwargs, [], signif(t_res, 4))))
             end
         end
-        return Trace(tr.func, tr.args, tr.kwargs, new_called, res)
+        return Trace(tr.func, tr.args, tr.kwargs, new_called, signif(res, 4))
     end
-    tr2 = trav(trace, top_value)
+    tr2 = trav(trace, norm(top_value))
     return greenred(tr2; map=x->x/tr2.value)
 end
 

@@ -140,6 +140,7 @@ Base.map(mac::Union{Symbol, Expr}, tr::Trace) = map(apply_macro_fn(mac), tr)
 """ Similar to `map`, but we apply `filter_fun(f(tr))` to each call, and if it's false,
 we filter out that call and all its descendents. Efficiently implemented. """
 function map_filter(f::Function, filter_fun::Function, tr::Trace)
+    # This was written for measure, but we turned out not to use it. Delete?
     res = f(tr)
     if filter_fun(res)
         Trace(tr.func, tr.args, tr.kwargs,
@@ -675,10 +676,22 @@ redgreen(tr::Trace; map=identity) =
 """ `greenred(tr::Trace)` is like `redgreen`, but with 0/false->green, 1/true->red. """
 greenred(tr::Trace; map=identity) = redgreen(tr::Trace; map=x->1-map(x))
 
+# This is not so great... Wonder what a better design would be? Can't really use
+# broadcasting because a) not documented b) we just want to apply through the
+# cosmetic stuff, not the actual value if it turns out to be a vector.
+apply_to_value(f::Function, tr::Trace) = apply_to_value(f, tr.value)
+apply_to_value(f::Function, x) = f(x)
+apply_to_value(f::Function, x::FontColor) =
+    FontColor(x.color, apply_to_value(f, x.content))
+apply_to_value_fn(f::Function) = tr->apply_to_value(f, tr)
+value(x) = x
+value(tr::Trace) = value(tr.value)
+value(x::FontColor) = x.content
+
 Base.maximum(tr::Trace) = maximum(sub.value for sub in collect(tr))
 Base.round(tr::Trace, n::Int) = map(sub->round(sub.value, n), tr)
 Base.signif(tr::Trace, n::Int) = map(sub->signif(sub.value, n), tr)
-Base.normalize(tr::Trace, div=tr.value) = map(sub->sub.value / div, tr)
+Base.normalize(tr::Trace, div=value(tr)) = map(apply_to_value_fn(x->x/div), tr)
 
 """
     measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false,

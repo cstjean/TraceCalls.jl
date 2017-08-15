@@ -108,6 +108,9 @@ Base.keys(tr::Trace) = [arg_names(tr)...; map(first, tr.kwargs)...]
 # Base.done(tr::Trace, i::Int) = i == length(tr)+1
 (tr::Trace)() = tr.func(tr.args...; tr.kwargs...)
 
+empty_trace() = nothing
+const empty_trace_dummy = Trace(empty_trace, (), (), [], nothing)
+
 struct Bottom
     delta::Int   # a positive number
 end
@@ -130,9 +133,24 @@ apply_macro(mac::Expr, tr::Trace, mod::Module=Main) =
 
 """ `map(f, tr::Trace)` recursively applies the function f to each `Trace` in `tr`,
 and stores the result in `Trace.value` """
-Base.map(f, tr::Trace) = Trace(tr.func, tr.args, tr.kwargs,
-                               [map(f, c) for c in tr.called], f(tr))
-Base.map(mac::Union{Symbol, Expr}, tr::Trace) = map(sub->apply_macro(mac, sub), tr)
+Base.map(f::Function, tr::Trace) = Trace(tr.func, tr.args, tr.kwargs,
+                                         [map(f, c) for c in tr.called], f(tr))
+apply_macro_fn(mac::Union{Symbol, Expr}) = sub->apply_macro(mac, sub)
+Base.map(mac::Union{Symbol, Expr}, tr::Trace) = map(apply_macro_fn(mac), tr)
+""" Similar to `map`, but we apply `filter_fun(f(tr))` to each call, and if it's false,
+we filter out that call and all its descendents. Efficiently implemented. """
+function map_filter(f::Function, filter_fun::Function, tr::Trace)
+    res = f(tr)
+    if filter_fun(res)
+        Trace(tr.func, tr.args, tr.kwargs,
+              filter(x->x!==empty_trace_dummy,
+                     [map_filter(f, filter_fun, c) for c in tr.called]), res)
+    else
+        empty_trace_dummy
+    end
+end
+handle_mac(f::Function) = f
+handle_mac(mac::Union{Symbol, Expr}) = apply_macro_fn(mac)
 
 top_level_dummy() = error("top_level_dummy is not callable")
 
@@ -575,9 +593,6 @@ show_val(io::IO, ::MIME"text/html", r::REPR) = write(io, r.html)
 
 ################################################################################
 
-empty_trace() = nothing
-const empty_trace_dummy = Trace(empty_trace, (), (), [], nothing)
-
 """ `filter_cutting(f::Function, tr::Trace)` removes all subtraces (and their
 callees) for which `f(tr)` is false. """
 filter_cutting(f::Function, tr::Trace) =
@@ -662,8 +677,8 @@ greenred(tr::Trace; map=identity) = redgreen(tr::Trace; map=x->1-map(x))
 
 Base.maximum(tr::Trace) = maximum(sub.value for sub in collect(tr))
 Base.round(tr::Trace, n::Int) = map(sub->round(sub.value, n), tr)
-Base.normalize(tr::Trace, div=tr.value) =
-    map(sub->sub.value / div, tr)
+Base.signif(tr::Trace, n::Int) = map(sub->signif(sub.value, n), tr)
+Base.normalize(tr::Trace, div=tr.value) = map(sub->sub.value / div, tr)
 
 """
     measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false,
@@ -672,17 +687,18 @@ Base.normalize(tr::Trace, div=tr.value) =
 Apply `mac_or_fun` to every function call in `tr`, with a `green->red` color scheme.
 Remove all function calls whose result is below `threshold`. `measure` runs `tr()` first
 to get rid of the compile time, but that is by not always sufficient. Call `measure`
-twice for best accuracy. """
-function measure(mac_or_fun::Union{Expr, Function}, tr::Trace; normalize=false,
+twice for best accuracy (esp. with `@allocated`). """
+function measure(mac_or_fun::Union{Expr, Function}, trace::Trace; normalize=false,
                  threshold=0)
-    tr() # run it once, to get the JIT behind us
-    filter_thresh(tr) = filter_cutting(t->t.value>=threshold, tr)
-    tr2 = map(mac_or_fun, tr)
-    if normalize
-        greenred(round(filter_thresh(TraceCalls.normalize(tr2)), 4))
-    else
-        greenred(filter_thresh(tr2); map=x->x/tr2.value)
+    f = handle_mac(mac_or_fun)
+    trace() # run it once, to get (at least some of) the JIT behind us
+    top_value = Dummy()
+    tr2 = map_filter(x->x>=threshold, trace) do tr
+        res = f(tr)
+        if top_value === Dummy(); top_value = res; end
+        return normalize ? signif(res / top_value, 4) : res
     end
+    return greenred(tr2; map=x->x/tr2.value)
 end
 
 

@@ -716,6 +716,10 @@ function measure(mac_or_fun::Union{Expr, Function}, trace::Trace; normalize=fals
     f = handle_mac(mac_or_fun)
     trace() # run it once, to get (at least some of) the JIT behind us
     top_value = f(trace)
+    if normalize && top_value == 0
+        warn("The normalization is 0 - disabling normalization")
+        normalize = false
+    end
     norm(x) = normalize ? (x / top_value) : x
     shorten(x::Integer) = x
     shorten(x::AbstractFloat) = signif(x, 4)
@@ -734,7 +738,7 @@ function measure(mac_or_fun::Union{Expr, Function}, trace::Trace; normalize=fals
         return Trace(tr.func, tr.args, tr.kwargs, new_called, shorten(res))
     end
     tr2 = trav(trace, norm(top_value))
-    return greenred(tr2; map=x->x/tr2.value)
+    return greenred(tr2; map=x->x/(tr2.value==0 ? 1 : tr2.value))
 end
 
 

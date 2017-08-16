@@ -77,6 +77,11 @@ Base.length(tr::Trace) = length(tr.called)
 Base.endof(tr::Trace) = length(tr)
 Base.url(tr::Trace) = @ignore_errors "" Base.url(which(tr))
 Base.which(tr::Trace) = apply_macro(:@which, tr)
+Base.code_llvm(tr::Trace) = apply_macro(:@code_llvm, tr)
+Base.code_lowered(tr::Trace) = apply_macro(:@code_lowered, tr)
+Base.code_native(tr::Trace) = apply_macro(:@code_native, tr)
+Base.code_typed(tr::Trace) = apply_macro(:@code_typed, tr)
+Base.code_warntype(tr::Trace) = apply_macro(:@code_warntype, tr)
 Base.less(tr::Trace) = apply_macro(:@less, tr)
 Base.edit(tr::Trace) = apply_macro(:@edit, tr)
 Base.sum(f::Function, tr::Trace) = sum(f, collect(tr))
@@ -712,6 +717,8 @@ function measure(mac_or_fun::Union{Expr, Function}, trace::Trace; normalize=fals
     trace() # run it once, to get (at least some of) the JIT behind us
     top_value = f(trace)
     norm(x) = normalize ? (x / top_value) : x
+    shorten(x::Integer) = x
+    shorten(x::AbstractFloat) = signif(x, 4)
     function trav(tr, res)
         new_called = Trace[]
         called_res = map(norm∘f, tr.called)
@@ -721,10 +728,10 @@ function measure(mac_or_fun::Union{Expr, Function}, trace::Trace; normalize=fals
                 push!(new_called,
                       ((!explore_worst || t_res == worst) ?
                        trav(t, t_res) :
-                       Trace(t.func, t.args, t.kwargs, [], signif(t_res, 4))))
+                       Trace(t.func, t.args, t.kwargs, [], shorten(t_res))))
             end
         end
-        return Trace(tr.func, tr.args, tr.kwargs, new_called, signif(res, 4))
+        return Trace(tr.func, tr.args, tr.kwargs, new_called, shorten(res))
     end
     tr2 = trav(trace, norm(top_value))
     return greenred(tr2; map=x->x/tr2.value)

@@ -634,10 +634,12 @@ filter_func(func::Function, tr::Trace) = filter_func([func], tr)
 """ `collect(tr::Trace)` returns a vector of all `Trace` objects within `tr`. """
 Base.collect(tr::Trace) = Trace[tr; mapreduce(collect, vcat, [], tr.called)]
 
-""" `prune(tr::Trace, max_depth::Int, max_length::Int=1000000000)` prunes the Trace-tree
+""" `prune(tr::Trace, max_depth::Int=0, max_length::Int=1000000000)` prunes the Trace-tree
 maximum tree depth, and maximum length (number of branches in each node). 
-(convenient to first explore a trace at a high-level) """
-prune(tr::Trace, max_depth::Int, max_length::Int=1000000000) =
+(convenient to first explore a trace at a high-level).
+
+`prune(tr)` prunes all of `tr`'s children (so all that remains is the function call). """
+prune(tr::Trace, max_depth::Int=0, max_length::Int=1000000000) =
     Trace(tr, Trace[prune(sub_tr, max_depth-1, max_length)
                     for sub_tr in tr.called[1:min(length(tr), max_length)]
                     if max_depth > 0])

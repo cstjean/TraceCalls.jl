@@ -16,7 +16,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
-    bottom, top, highlight
+    bottom, top, highlight, @show_val_only_type
 
 include("code_update.jl")
 
@@ -399,6 +399,19 @@ try_show_val(io::IO, m::MIME"text/plain", x::T) where T =
                          "<error displaying $T instance>",
                          inv(Crayon(foreground=:light_red))),
                    show_val(io, m, x))
+
+"""    @show_val_only_type SomeObjectType
+
+Display objects of type SomeObjectType as <SomeObjectType object>."""
+macro show_val_only_type(typ)
+    typ_name = string(typ)
+    quote
+        TraceCalls.show_val(io::IO, ::MIME"text/html", ::$(esc(typ))) =
+            print(io, "&lt", $typ_name, " object&gt")
+        TraceCalls.show_val(io::IO, ::MIME"text/plain", ::$(esc(typ))) =
+            print(io, "<", $typ_name, " object>")
+    end
+end
 
 html_color(c) = c
 html_color(c::NTuple{3, AbstractFloat}) = bytes2hex([map(to_int8, c)...])

@@ -10,13 +10,13 @@ using DataStructures: OrderedDict, OrderedSet
 using Memoize
 using Base: url
 using Crayons: Crayon, inv
-import Base: -
+import Base: +, -
 
 export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
-    bottom, highlight
+    bottom, top, highlight
 
 include("code_update.jl")
 
@@ -120,10 +120,20 @@ struct Bottom
     delta::Int   # a positive number
 end
 const bottom = Bottom(0)
--(bot::Bottom, d) = Bottom(bot.delta + d)
+-(bot::Bottom, d::Int) = Bottom(bot.delta + d)
 Base.getindex(tr::Trace, bot::Bottom, args...) =
     (depth(tr) <= bot.delta + 1) ? tr[args...] : tr.called[1][bot, args...]
 depth(tr::Trace) = isempty(tr.called) ? 1 : 1 + maximum(depth, tr.called)
+
+
+struct Top
+    delta::Int   # a positive number
+end
+const top = Top(0)
++(top::Top, d::Int) = Top(top.delta + d)
+Base.getindex(tr::Trace, top::Top, args...) =
+    top.delta==0 ? tr : tr[1][Top(top.delta-1), args...]
+
 
 apply_macro(mac::Symbol, tr::Trace, mod::Module=Main) =
     eval(mod, Expr(:macrocall, mac,

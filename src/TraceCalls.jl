@@ -606,11 +606,14 @@ filter_cutting(f::Function, tr::Trace) =
 
 """ `filter_lineage(f::Function, tr::Trace; highlight=true)` keeps all subtraces for
 which `f(::Trace)` is true of some of its descendents OR ancestors. """
-function filter_lineage(f::Function, tr::Trace; highlight=true)
+function filter_lineage(f::Function, tr::Trace; highlight=true, keep_children=true)
     if f(tr)
-        res = tr
+        # FIXME: we should probably go down and keep+highlight those descendents for which
+        # f(tr) is true.
+        res = keep_children ? tr : prune(tr)
     else
-        called0 = Trace[filter_lineage(f, sub_tr; highlight=false)
+        called0 = Trace[filter_lineage(f, sub_tr; highlight=false,
+                                       keep_children=keep_children)
                         for sub_tr in tr.called]
         called = filter(c->c!=empty_trace_dummy, called0)
         res = isempty(called) ? empty_trace_dummy : Trace(tr, called)

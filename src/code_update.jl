@@ -284,7 +284,7 @@ nor the state of `Julia`). See the README for usage info.
 IMPORTANT: if some expression `x` should not be modified, return `nothing` instead of `x`.
 This will significantly improve performance. """
 function update_code_revertible(fn::Function, mod::Module)
-    if mod == Base; error("Cannot update all of Base (only specific functions/files)") end
+    if mod == Base; error("Cannot trace all of Base. Please trace specific functions (eg. Base.sparse), and beware that tracing ubiquitous, basic functions like `convert` or `length` will trap you in an infinite recursion.") end
     return RevertibleCodeUpdate(fn, code_of(mod))
 end
 

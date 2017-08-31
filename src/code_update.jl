@@ -170,9 +170,14 @@ end
 # Return the list of files in `mod`
 # Memoizing is technically wrong, since the user could conceivably add a file.
 # This seems OK until Revise.jl provides module_files
-@memoize ObjectIdDict module_files(mod::Module) =
-    # copy because Revise.jl aggressively reuses objects
-    copy(Revise.parse_pkg_files(Symbol(mod)))
+@memoize ObjectIdDict function module_files(mod::Module)
+    if Base.find_source_file(string(mod)) isa Void
+        error("TraceCalls error: module $mod's definition file must be in the LOAD_PATH, and it must have been loaded with `using/import/require` (not `include`).")
+    else
+        # copy because Revise.jl aggressively reuses objects
+        copy(Revise.parse_pkg_files(Symbol(mod)))
+    end
+end
 
 code_of(mod::Module) = 
     merge((code_of(mod, file) for file in module_files(mod))...)

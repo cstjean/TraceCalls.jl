@@ -247,8 +247,8 @@ function tracing_code(fdef::Expr)::Expr
     end
 end
 
-""" `@traceable function foo(...) ... end` marks a function definition for the `@trace`
-macro. See the README for details. """
+""" `@traceable function foo(...) ... end` makes that function definition traceable
+with the `@trace` macro (eg. as `@trace () foo(...)`). """
 macro traceable(fdef::Expr)
     @assert !is_call_definition(fdef) "@traceable cannot handle callable object definitions"
 
@@ -288,7 +288,7 @@ function traceable_update end
 
 custom_when_missing(x) = warn(x)
 custom_when_missing(fail::UpdateInteractiveFailure) =
-    warn("Use `@traceable` to trace methods defined interactively.")
+    warn("Cannot trace $(fail.fn); use `@traceable` to trace methods defined interactively. See ?@traceable and the user manual for details.")
 traceable_update(obj::Union{Module, String}) =
     update_code_revertible(traceable_update_handle_expr, obj)
 traceable_update(f::Union{Function, Type}) =

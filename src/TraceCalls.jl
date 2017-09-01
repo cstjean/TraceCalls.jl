@@ -48,7 +48,7 @@ immediate traceable function calls that happened during the execution of this tr
 There are no accessors for `Trace`; please reference its fields directly.
 For instance, `filter(tr->isa(tr.args[1], Int), trace)` will select all calls whose
 first argument is an `Int`. """
-mutable struct Trace
+struct Trace
     func             # the function/callable called
     args::Tuple      # the positional arguments
     kwargs::Tuple    # the keyword arguments
@@ -69,7 +69,6 @@ end
 
 tree_size(tr::Trace) = 1 + mapreduce(tree_size, +, 0, tr.called)
 Base.copy(tr::Trace) = Trace(tr.func, tr.args, tr.kwargs, tr.called, tr.value)
-struct NotReturned end   # special flag value
 Base.push!(tr::Trace, sub_trace::Trace) = push!(tr.called, sub_trace)
 Base.getindex(tr::Trace, i::Int, args...) = tr.called[i][args...]
 Base.getindex(tr::Trace) = tr
@@ -168,12 +167,8 @@ end
 handle_mac(f::Function) = f
 handle_mac(mac::Union{Symbol, Expr}) = apply_macro_fn(mac)
 
-top_level_dummy() = error("top_level_dummy is not callable")
-
-const is_tracing = fill(false)
-top_trace(fun) = Trace(fun, (), (), [], nothing)
-const trace_data = top_trace(top_level_dummy)
-const current_trace = fill(trace_data)
+const current_called =
+    fill(Trace[]) # the current vector onto which to tack the next function calls
 
 is_traceable(def) =
     (is_function_definition(def) && (di=splitdef(def); !is_call_definition(di)) &&
@@ -215,34 +210,35 @@ function tracing_code(fdef::Expr)::Expr
     do_body_di[:name] = do_body = isa(fname, Expr) ? gensym() : gensym(fname)
 
     updated_fun_di = copy(di)
-    @gensym new_trace prev_trace e res
     passed_args = map(arg_name_splat, di[:args])
     passed_kwargs = [is_splat(kwa) ?
                      arg_name_splat(kwa) :
                      :(($(Expr(:quote, arg_name(kwa))), $(arg_name(kwa))))
                      for kwa in di[:kwargs]]
+    @gensym prev_called trace_args trace_kwargs e res called
     updated_fun_di[:body] = quote
-        $prev_trace = $TraceCalls.current_trace[]
-        $new_trace =
-            $TraceCalls.Trace($fname,
-                              map($TraceCalls.store, ($(passed_args...),)),
-                              # We don't call it on kwargs. Does any function ever mutate
-                              # a kwarg? Seems unlikely.
-                              ($(passed_kwargs...),),
-                              [], $TraceCalls.NotReturned())
-        $TraceCalls.current_trace[] = $new_trace
-        push!($prev_trace, $new_trace)
+        local $res
+        $prev_called = $TraceCalls.current_called[]
+        $trace_args = map($TraceCalls.store, ($(passed_args...),))
+        # We don't call store on kwargs. Does any function ever mutate a kwarg? Seems
+        # unlikely.
+        $trace_kwargs = ($(passed_kwargs...),)
+        $TraceCalls.current_called[] = $called = $TraceCalls.Trace[]
         try
             $res = $do_body($(map(arg_name_splat, di[:args])...);
                             $(passed_kwargs...))
-            $new_trace.value = $TraceCalls.store($res)
-            return $res
         catch $e
-            $new_trace.value = $e
+            push!($prev_called,
+                  $TraceCalls.Trace($fname, $trace_args, $trace_kwargs,
+                                    $called, $e))
             rethrow()
         finally
-            $TraceCalls.current_trace[] = $prev_trace
+            $TraceCalls.current_called[] = $prev_called
         end
+        push!($prev_called,
+              $TraceCalls.Trace($fname, $trace_args, $trace_kwargs,
+                                $called, $TraceCalls.store($res)))
+        return $res
     end
     quote
         @inline $(combinedef(do_body_di))
@@ -338,14 +334,14 @@ function get_error_or_value(f)
     end
 end
 
-""" `recording_trace(fun::Function)` sets up a fresh Trace in trace_data, then executes
-`fun` and returns the final Trace object """
+""" `recording_trace(fun::Function)` sets up a fresh Trace recording state, then executes
+`fun` and returns the resulting Trace object. """
 function recording_trace(fun::Function)
-    copy!(trace_data, top_trace(fun))
-    trace_data.value = get_error_or_value(fun)
-    res = copy(trace_data)
-    copy!(trace_data, top_trace(fun)) # don't hang on to that memory unnecessarily
-    res
+    current_called[] = called = Trace[]
+    res = get_error_or_value(fun)
+    top_trace = Trace(fun, (), (), called, res)
+    current_called[] = Trace[] # don't hang on to that memory unnecessarily
+    top_trace
 end    
 
 function tracing(body::Function, to_trace=())

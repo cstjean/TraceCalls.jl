@@ -115,24 +115,30 @@ Base.keys(tr::Trace) = [arg_names(tr)...; map(first, tr.kwargs)...]
 empty_trace() = nothing
 const empty_trace_dummy = Trace(empty_trace, (), (), [], nothing)
 
+
 struct Bottom
     delta::Int   # a positive number
 end
+""" `some_trace[bottom-2]` returns the subtrace that is the caller of the caller of the
+deepest call in `some_trace`. """
 const bottom = Bottom(0)
+deepest_call(tr) = tr.called[findmax(map(depth, tr.called))[2]]
 -(bot::Bottom, d::Int) = Bottom(bot.delta + d)
 Base.getindex(tr::Trace, bot::Bottom, args...) =
-    ((depth(tr) <= bot.delta + 1) ? tr[args...] :
-     tr.called[findmax(map(depth, tr.called))[2]][bot, args...])
+    (depth(tr) <= bot.delta + 1) ? tr[args...] : deepest_call(tr)[bot, args...]
 depth(tr::Trace) = isempty(tr.called) ? 1 : 1 + maximum(depth, tr.called)
 
 
 struct Top
     delta::Int   # a positive number
 end
+""" `some_trace[top+2]` is equivalent to `some_trace[i, j]` where `i::Int` and `j::Int`
+are the indexes of the deepest call trees in `some_trace` and `some_trace[i]`,
+respectively. """
 const top = Top(0)
 +(top::Top, d::Int) = Top(top.delta + d)
 Base.getindex(tr::Trace, top::Top, args...) =
-    top.delta==0 ? tr : tr[1][Top(top.delta-1), args...]
+    top.delta==0 ? tr : deepest_call(tr)[Top(top.delta-1), args...]
 
 
 apply_macro(mac::Symbol, tr::Trace, mod::Module=Main) =

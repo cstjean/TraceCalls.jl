@@ -16,7 +16,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
-    bottom, top, highlight, @show_val_only_type
+    bottom, top, highlight, @show_val_only_type, objects_in
 
 include("code_update.jl")
 
@@ -104,6 +104,9 @@ struct Dummy end
 Base.getindex(tr::Trace, arg::Symbol) =
     (r=Base.get(tr, arg, Dummy())) == Dummy() ? throw(KeyError(arg)) : r
 Base.keys(tr::Trace) = [arg_names(tr)...; map(first, tr.kwargs)...]
+""" `objects_in(tr::Trace)` returns the call's arguments and return value in a vector.
+Useful for filtering, eg. `filter(tr->any(obj isa Number && obj < 0 for obj in objects_in(tr)), trace)` will keep all calls that contain some negative number. """
+objects_in(tr::Trace) = [tr.args..., map(last, tr.kwargs)..., value(tr)]
             
 # I've disabled iteration because it doesn't align with our desired `Base.map`'s
 # behaviour, and it's kinda useless anyway.

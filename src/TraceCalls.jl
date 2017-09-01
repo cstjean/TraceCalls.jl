@@ -121,7 +121,8 @@ end
 const bottom = Bottom(0)
 -(bot::Bottom, d::Int) = Bottom(bot.delta + d)
 Base.getindex(tr::Trace, bot::Bottom, args...) =
-    (depth(tr) <= bot.delta + 1) ? tr[args...] : tr.called[1][bot, args...]
+    ((depth(tr) <= bot.delta + 1) ? tr[args...] :
+     tr.called[findmax(map(depth, tr.called))[2]][bot, args...])
 depth(tr::Trace) = isempty(tr.called) ? 1 : 1 + maximum(depth, tr.called)
 
 

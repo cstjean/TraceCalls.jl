@@ -8,3 +8,4 @@ stack trace (see `@stacktrace`). Similarly for `top`.
 - New function: `highlight(pred, trace)`. See `?highlight`.
 - Profiling with `measure` was significantly improved, with a new option `explore_worst`
 added for quickly surverying large traces. See `?measure` and the user manual.
+- New user manual section, "Saving traces to disk"

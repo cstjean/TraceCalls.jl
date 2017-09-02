@@ -835,9 +835,9 @@ function show_val(io::IO, mime::MIME"text/plain", isd::IsEqual)
 end
 
 """ `compare_past_trace(old_trace::Trace; filter_out_equal=true))` reruns every function
-call in `old_trace`, and shows in red where the new result differs from the old.  If
+call in `old_trace`, and shows in red where the new results differ from the old.  If
 `filter_out_equal==true`, only show the non-equal results. Override
-`TraceCalls.iseql(a, b)` to get custom comparisons. """
+`TraceCalls.iseql(a, b)` to implement custom comparisons. """
 function compare_past_trace(old_trace::Trace; filter_out_equal=true)
     tr2 = map(sub_tr->IsEqual(sub_tr.value, get_error_or_value(sub_tr)),
               old_trace)

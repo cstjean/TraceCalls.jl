@@ -290,6 +290,7 @@ IMPORTANT: if some expression `x` should not be modified, return `nothing` inste
 This will significantly improve performance. """
 function update_code_revertible(fn::Function, mod::Module)
     if mod == Base; error("Cannot trace all of Base. Please trace specific functions (eg. Base.sparse), and beware that tracing ubiquitous, basic functions like `convert` or `length` will trap you in an infinite recursion.") end
+    if mod == TraceCalls; error("Cannot trace all of TraceCalls - it yields a StackOverflow, but you may trace specific functions like TraceCalls.redgreen") end
     return RevertibleCodeUpdate(fn, code_of(mod))
 end
 

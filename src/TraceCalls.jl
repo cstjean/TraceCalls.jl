@@ -849,4 +849,13 @@ function you can call to add extra information to your traces. For instance,
 `trace_log(:inside_foo; y=2, sqrt_of_x=sqrt(x))` """
 @traceable trace_log(args...; kwargs...) = nothing
 
+
+@require BenchmarkTools begin
+import BenchmarkTools: Trial
+TraceCalls.show_val(io::IO, mime, t::Trial) =
+    # The default `show` method only shows the time. 
+    print(io, "Trial(", BenchmarkTools.prettytime(time(t)), ", ",
+          BenchmarkTools.prettymemory(BenchmarkTools.memory(t)), ")")
+end
+
 end # module

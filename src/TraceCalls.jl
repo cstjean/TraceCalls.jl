@@ -851,11 +851,21 @@ function you can call to add extra information to your traces. For instance,
 
 
 @require BenchmarkTools begin
-import BenchmarkTools: Trial
-TraceCalls.show_val(io::IO, mime, t::Trial) =
-    # The default `show` method only shows the time. 
-    print(io, "Trial(", BenchmarkTools.prettytime(time(t)), ", ",
-          BenchmarkTools.prettymemory(BenchmarkTools.memory(t)), ")")
+    using BenchmarkTools: @benchmark, Trial, TrialEstimate, prettytime, prettymemory
+    using BenchmarkTools: memory
+
+    export benchmark
+    TraceCalls.show_val(io::IO, mime, t::Trial) =
+        # The default `show` method only shows the time. 
+        print(io, "Trial(", prettytime(time(t)), ", ",
+              prettymemory(memory(t)), ")")
+    TraceCalls.show_val(io::IO, mime, t::TrialEstimate) =
+        print(io, "TrialEstimate(", prettytime(time(t)), ", ",
+              prettymemory(memory(t)), ")")
+
+    # This trivial definition enables map(median∘benchmark, trace)
+    """ `benchmark(tr::Trace)` calls `@benchmark` on `tr`. """
+    benchmark(tr::Trace) = apply_macro(:@benchmark, tr)
 end
 
 end # module

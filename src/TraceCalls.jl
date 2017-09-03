@@ -16,7 +16,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
-    bottom, top, highlight, @show_val_only_type, objects_in
+    bottom, top, highlight, @show_val_only_type, objects_in, signature
 
 include("code_update.jl")
 
@@ -97,7 +97,10 @@ Base.edit(tr::Trace) = apply_macro(:@edit, tr)
 Base.sum(f::Function, tr::Trace) = sum(f, collect(tr))
 Base.sum(tr::Trace) = sum(t->t.value, tr)
 Base.all(f::Function, tr::Trace) = all(f, collect(tr))
-Base.all(tr::Trace) = all(t->t.value, collect(tr))
+Base.all(tr::Trace) = all(t->value(t), collect(tr))
+""" `signature(tr::Trace) = map(typeof, tr.args)` - the arguments that this call
+dispatches on. """
+signature(tr::Trace) = map(typeof, tr.args)
 arg_names(method::Method) = [Symbol(first(a))
                              for a in Base.arg_decl_parts(method)[2][2:end]
                              if first(a)!=""]

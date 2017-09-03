@@ -16,7 +16,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
-    bottom, top, highlight, @show_val_only_type, objects_in, signature
+    bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby
 
 include("code_update.jl")
 
@@ -98,9 +98,9 @@ Base.sum(f::Function, tr::Trace) = sum(f, collect(tr))
 Base.sum(tr::Trace) = sum(t->t.value, tr)
 Base.all(f::Function, tr::Trace) = all(f, collect(tr))
 Base.all(tr::Trace) = all(t->value(t), collect(tr))
-""" `signature(tr::Trace) = map(typeof, tr.args)` - the arguments that this call
-dispatches on. """
-signature(tr::Trace) = map(typeof, tr.args)
+""" `signature(tr::Trace) = (tr.func, map(typeof, tr.args)...)` - the arguments that this
+call dispatches on. """
+signature(tr::Trace) = (tr.func, map(typeof, tr.args)...)
 arg_names(method::Method) = [Symbol(first(a))
                              for a in Base.arg_decl_parts(method)[2][2:end]
                              if first(a)!=""]
@@ -587,12 +587,17 @@ each trace.  Overload it for specific functions with
 `TraceCalls.show_call(io::IO, mime, ::typeof(function_name), tr::Trace) = ...` """
 function show_call end
 
-function show_call_core(io, mime, tr)
+function show_call_base(io, mime, tr) # show_call without the return value
     show_func_name(io, mime, tr)
     write(io, "(")
     show_args(io, mime, tr.args)
     show_kwargs(io, mime, tr.kwargs)
-    write(io, ") => ")
+    write(io, ")")
+end
+
+function show_call_(io, mime, tr)
+    show_call_base(io, mime, tr)
+    write(io, " => ")
     show_return_val(io, mime, tr.value)
 end
 
@@ -605,14 +610,14 @@ function show_call(io::IO, mime::MIME"text/html", ::Any, tr::Trace)
     # Could use CSS https://www.computerhope.com/issues/ch001034.htm
     background = is_highlighted(tr) ? "background-color:$(highlight_color(tr, mime))" : ""
     write(io, """<pre style="display: inline; $background">""")
-    show_call_core(io, mime, tr)
+    show_call_(io, mime, tr)
     write(io, "</pre>")
 end
 
 function show_call(io::IO, mime::MIME"text/plain", ::Any, tr::Trace)
     cr = is_highlighted(tr) ? Crayon(background=highlight_color(tr, mime)) : Crayon()
     with_crayon(io, cr) do
-        show_call_core(io, mime, tr)
+        show_call_(io, mime, tr)
     end
 end
 show_call(io::IO, mime, tr::Trace) = show_call(io, mime, tr.func, tr)
@@ -804,6 +809,7 @@ macro stacktrace(expr)
 end
 
 ################################################################################
+# compare_past_trace
 
 struct IsEqual
     a
@@ -865,6 +871,8 @@ function you can call to add extra information to your traces. For instance,
 `trace_log(:inside_foo; y=2, sqrt_of_x=sqrt(x))` """
 @traceable trace_log(args...; kwargs...) = nothing
 
+################################################################################
+# BenchmarkTools
 
 @require BenchmarkTools begin
     using BenchmarkTools: @benchmark, Trial, TrialEstimate, prettytime, prettymemory
@@ -886,6 +894,41 @@ function you can call to add extra information to your traces. For instance,
     # That's type-piracy. Remove it once https://github.com/JuliaCI/BenchmarkTools.jl/pull/73
     # gets decided. Could also be fixed by creating our own "divide" function.
     Base.:/(a::TrialEstimate, b::TrialEstimate) = ratio(a, b)
+end
+
+################################################################################
+# groupby
+
+struct Group
+    key
+    traces::Vector{Trace}
+end
+Base.getindex(gr::Group, i::Int) = gr.traces[i]
+Base.push!(gr::Group, tr::Trace) = push!(gr.traces, tr)
+Base.length(gr::Group) = length(gr.traces)
+function show_group(io, mime, gr)
+    N = length(gr)
+    write(io, "$N trace", N>1?"s":"", " like ")
+    show_call_base(io, mime, gr[1])
+end
+# Necessary to split because otherwise it's ambiguous
+Base.show(io::IO, mime::MIME"text/plain", gr::Group) = show_group(io, mime, gr)
+function Base.show(io::IO, mime::MIME"text/html", gr::Group)
+    write(io, "<pre>")
+    show_group(io, mime, gr)
+    write(io, "</pre>")
+end
+Base.show(io::IO, gr::Group) = show_group(io, MIME"text/plain"(), gr)
+    
+
+function groupby(by::Function, trace::Trace)
+    di = OrderedDict{Any, Group}()
+    for tr in collect(trace)
+        key = by(tr)
+        group = get!(()->Group(key, []), di, key)
+        push!(group, prune(tr))
+    end
+    collect(values(di))
 end
 
 end # module

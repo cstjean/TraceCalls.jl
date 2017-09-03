@@ -715,7 +715,7 @@ used to normalize the values into the `[0, 1]` range. """
 redgreen(tr::Trace; map=identity) =
     TraceCalls.map(sub->FontColor(redgreen(map(sub.value)), sub.value), tr)
 """ `greenred(tr::Trace)` is like `redgreen`, but with 0/false->green, 1/true->red. """
-greenred(tr::Trace; map=identity) = redgreen(tr::Trace; map=x->1-map(x))
+greenred(tr::Trace; map=identity) = redgreen(tr::Trace; map=x->1-number(map(x)))
 
 # This is not so great... Wonder what a better design would be? Can't really use
 # broadcasting because a) not documented b) we just want to apply through the
@@ -757,14 +757,14 @@ function measure(mac_or_fun::Union{Expr, Function}, trace::Trace; normalize=fals
         normalize = false
     end
     norm(x) = normalize ? (x / top_value) : x
-    shorten(x::Integer) = x
+    shorten(x) = x
     shorten(x::AbstractFloat) = signif(x, 4)
     function trav(tr, res)
         new_called = Trace[]
         called_res = map(norm∘f, tr.called)
         worst = isempty(tr.called) ? nothing : maximum(called_res)
         for (t, t_res) in zip(tr.called, called_res)
-            if t_res >= threshold
+            if number(t_res) >= threshold
                 push!(new_called,
                       ((!explore_worst || t_res == worst) ?
                        trav(t, t_res) :
@@ -774,9 +774,11 @@ function measure(mac_or_fun::Union{Expr, Function}, trace::Trace; normalize=fals
         return Trace(tr.func, tr.args, tr.kwargs, new_called, shorten(res))
     end
     tr2 = trav(trace, norm(top_value))
-    return greenred(tr2; map=x->x/(tr2.value==0 ? 1 : tr2.value))
+    # number(x) is to handle TrialEstimate
+    return greenred(tr2; map=(value(tr2)==0 ? identity : x->number(x)/number(value(tr2))))
 end
 
+number(x::Number) = x
 
 only_exceptions(trace::Trace) = filter(tr->tr.value isa Exception, trace)
 macro stacktrace(to_trace, expr)
@@ -852,7 +854,7 @@ function you can call to add extra information to your traces. For instance,
 
 @require BenchmarkTools begin
     using BenchmarkTools: @benchmark, Trial, TrialEstimate, prettytime, prettymemory
-    using BenchmarkTools: memory
+    using BenchmarkTools: memory, ratio
 
     export benchmark
     TraceCalls.show_val(io::IO, mime, t::Trial) =
@@ -866,6 +868,10 @@ function you can call to add extra information to your traces. For instance,
     # This trivial definition enables map(median∘benchmark, trace)
     """ `benchmark(tr::Trace)` calls `@benchmark` on `tr`. """
     benchmark(tr::Trace) = apply_macro(:@benchmark, tr)
+    number(x::TrialEstimate) = time(x)
+    # That's type-piracy. Remove it once https://github.com/JuliaCI/BenchmarkTools.jl/pull/73
+    # gets decided. Could also be fixed by creating our own "divide" function.
+    Base.:/(a::TrialEstimate, b::TrialEstimate) = ratio(a, b)
 end
 
 end # module

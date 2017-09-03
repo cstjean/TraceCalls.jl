@@ -903,13 +903,14 @@ struct Group
     key
     traces::Vector{Trace}
 end
-Base.getindex(gr::Group, i::Int) = gr.traces[i]
+Base.getindex(gr::Group, i) = gr.traces[i]
 Base.push!(gr::Group, tr::Trace) = push!(gr.traces, tr)
 Base.length(gr::Group) = length(gr.traces)
+Base.endof(gr::Group) = length(gr)
 function show_group(io, mime, gr)
     N = length(gr)
     write(io, "$N trace", N>1?"s":"", " like ")
-    show_call_base(io, mime, gr[1])
+    show_call_(io, mime, gr[1])
 end
 # Necessary to split because otherwise it's ambiguous
 Base.show(io::IO, mime::MIME"text/plain", gr::Group) = show_group(io, mime, gr)
@@ -919,7 +920,15 @@ function Base.show(io::IO, mime::MIME"text/html", gr::Group)
     write(io, "</pre>")
 end
 Base.show(io::IO, gr::Group) = show_group(io, MIME"text/plain"(), gr)
-    
+
+apply(mac_or_fun, group::Group) =
+    # Only apply mac_or_fun to the first trace, which is assumed to be representative
+    Group(group.key, [map(mac_or_fun, group[1]); group[2:end]])
+
+measure(mac_or_fun::Union{Expr, Function}, groups::Vector{Group}) =
+    Group[apply(mac_or_fun, grp) for grp in groups]
+
+is_inferred(grp::Group) = apply(is_inferred, grp)  # I don't like where this is going...
 
 function groupby(by::Function, trace::Trace)
     di = OrderedDict{Any, Group}()

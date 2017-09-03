@@ -38,6 +38,17 @@ macro ignore_errors(error_rval, expr)
     end
 end
 
+macro return_error(expr)
+    quote
+        try
+            $(esc(expr))
+        catch e
+            return e
+        end
+    end
+end
+
+return_error_fn(f) = x->@return_error(f(x))
 
 ################################################################################
 

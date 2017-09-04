@@ -951,10 +951,12 @@ end
 ################################################################################
 # BenchmarkTools
 
+const judgement_colors = Dict(:invariant=>:black, :regression=>:red, :improvement=>:green)
+
 @require BenchmarkTools begin
     using BenchmarkTools: @benchmark, Trial, TrialEstimate, prettytime, prettymemory
     using BenchmarkTools: memory, ratio, judge, Benchmark, TrialEstimate, Trial, params
-    using BenchmarkTools: loadparams!, run
+    using BenchmarkTools: loadparams!, run, TrialJudgement
 
     export benchmark
     TraceCalls.show_val(io::IO, mime, t::Trial) =
@@ -985,9 +987,10 @@ end
     BenchmarkTools.ratio(group1::Group, group2::Group) =
         if_not_error(()->apply(tr->ratio(value(tr), value(group2)), group1),
                      group1, group2)
-    BenchmarkTools.judge(group1::Group, group2::Group) =
-        if_not_error(()->apply(tr->judge(value(tr), value(group2)), group1),
-                     group1, group2)
+    add_color(judge::TrialJudgement) = FontColor(judgement_colors[time(judge)], judge)
+    BenchmarkTools.judge(new_group::Group, old_group::Group) =
+        if_not_error(()->apply(tr->add_color(judge(value(tr), value(old_group))), new_group),
+                     new_group, old_group)
 end
 
 ################################################################################
@@ -1024,8 +1027,8 @@ trace_benchmark(file_to_include::String, to_trace; kwargs...) =
         GroupBenchmark(gb.estimator, map_groups(gb.estimator∘benchmark, gb.groups), true)
     BenchmarkTools.ratio(gb1::GroupBenchmark, gb2::GroupBenchmark) =
         GroupBenchmark(gb1.estimator, map(ratio, gb1.groups, gb2.groups), true)
-    BenchmarkTools.judge(gb1::GroupBenchmark, gb2::GroupBenchmark) =
-        GroupBenchmark(gb1.estimator, map(judge, gb1.groups, gb2.groups), true)
+    BenchmarkTools.judge(new_gb::GroupBenchmark, old_gb::GroupBenchmark) =
+        GroupBenchmark(new_gb.estimator, map(judge, new_gb.groups, old_gb.groups), true)
 end
 
 

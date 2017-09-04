@@ -68,7 +68,9 @@ struct Trace
     value       # This is the return value of the func(args...) call, but it's also where
                 # the result of `map(f, ::Trace)` will be stored.
 end
-Trace(tr::Trace, called::Vector{Trace}) =  # convenience constructor
+# Convenience constructors
+Trace(tr::Trace, new_value) = Trace(tr.func, tr.args, tr.kwargs, tr.called, new_value)
+Trace(tr::Trace, called::Vector{Trace}) =
     Trace(tr.func, tr.args, tr.kwargs, called, tr.value)
 
 function Base.copy!(dest::Trace, src::Trace)
@@ -872,30 +874,6 @@ function you can call to add extra information to your traces. For instance,
 `trace_log(:inside_foo; y=2, sqrt_of_x=sqrt(x))` """
 @traceable trace_log(args...; kwargs...) = nothing
 
-################################################################################
-# BenchmarkTools
-
-@require BenchmarkTools begin
-    using BenchmarkTools: @benchmark, Trial, TrialEstimate, prettytime, prettymemory
-    using BenchmarkTools: memory, ratio
-
-    export benchmark
-    TraceCalls.show_val(io::IO, mime, t::Trial) =
-        # The default `show` method only shows the time. 
-        print(io, "Trial(", prettytime(time(t)), ", ",
-              prettymemory(memory(t)), ")")
-    TraceCalls.show_val(io::IO, mime, t::TrialEstimate) =
-        print(io, "TrialEstimate(", prettytime(time(t)), ", ",
-              prettymemory(memory(t)), ")")
-
-    # This trivial definition enables map(median∘benchmark, trace)
-    """ `benchmark(tr::Trace)` calls `@benchmark` on `tr`. """
-    benchmark(tr::Trace) = apply_macro(:@benchmark, tr)
-    number(x::TrialEstimate) = time(x)
-    # That's type-piracy. Remove it once https://github.com/JuliaCI/BenchmarkTools.jl/pull/73
-    # gets decided. Could also be fixed by creating our own "divide" function.
-    Base.:/(a::TrialEstimate, b::TrialEstimate) = ratio(a, b)
-end
 
 ################################################################################
 # groupby
@@ -906,6 +884,7 @@ struct Group
     traces::Vector{Trace}
 end
 Group(key, traces) = Group(traces)
+value(grp::Group) = value(grp[1])
 
 Base.getindex(gr::Group, i) = gr.traces[i]
 Base.push!(gr::Group, tr::Trace) = push!(gr.traces, tr)
@@ -913,7 +892,7 @@ Base.length(gr::Group) = length(gr.traces)
 Base.endof(gr::Group) = length(gr)
 function show_group(io, mime, gr)
     N = length(gr)
-    write(io, "$N trace", N>1?"s":"", " like ")
+    write(io, "$N call", N>1?"s":"", " like ")
     show_call_(io, mime, gr[1])
 end
 # Necessary to split because otherwise it's ambiguous
@@ -933,9 +912,29 @@ measure(mac_or_fun::Union{Expr, Function}, groups::Vector{Group}) =
     map_groups(mac_or_fun, groups)
 
 map_groups(mac_or_fun, groups::Vector{Group}) =
-    Group[apply(mac_or_fun, grp) for grp in groups]
+    Group[apply(return_error_fn(handle_mac(mac_or_fun)), grp) for grp in groups]
+# map_groups(mac_or_fun, groups1::Vector{Group}, groups2::Vector{Group}) =
+#     Group[apply(return_error_fn(handle_mac(mac_or_fun)), grp1, grp2)
+#           for (grp1, grp2) in zip(groups1, groups2)]
 
-is_inferred(grp::Group) = apply(is_inferred, grp)  # I don't like where this is going...
+
+if_not_error(fn::Function, group::Group) =
+    value(group) isa Exception ? apply(tr->value(group), group) : fn()
+if_not_error(fn::Function, group1::Group, group2::Group) =
+    (value(group1) isa Exception || value(group2) isa Exception ?
+     # Return the exception
+     apply(tr->value(value(group1) isa Exception ? group1 : group2), group1) :
+     fn())
+
+macro delegate_to_group(funs...)
+    esc(quote
+        $([:($fun(grp::Group, args...; kwargs...) = apply($fun, grp, args...; kwargs...))
+           for fun in funs]...)
+        end)
+end
+@delegate_to_group is_inferred
+
+redgreen(grp::Group) = Group([redgreen(grp[1]); grp[2:end]])
 
 function groupby(by::Function, trace::Trace)
     di = OrderedDict{Any, Group}()
@@ -946,5 +945,38 @@ function groupby(by::Function, trace::Trace)
     end
     collect(values(di))
 end
+
+################################################################################
+# BenchmarkTools
+
+@require BenchmarkTools begin
+    using BenchmarkTools: @benchmark, Trial, TrialEstimate, prettytime, prettymemory
+    using BenchmarkTools: memory, ratio, judge
+
+    export benchmark
+    TraceCalls.show_val(io::IO, mime, t::Trial) =
+        # The default `show` method only shows the time. 
+        print(io, "Trial(", prettytime(time(t)), ", ",
+              prettymemory(memory(t)), ")")
+    TraceCalls.show_val(io::IO, mime, t::TrialEstimate) =
+        print(io, "TrialEstimate(", prettytime(time(t)), ", ",
+              prettymemory(memory(t)), ")")
+
+    # This trivial definition enables map(median∘benchmark, trace)
+    """ `benchmark(tr::Trace)` calls `@benchmark` on `tr`. """
+    benchmark(tr::Trace) = apply_macro(:@benchmark, tr)
+    number(x::TrialEstimate) = time(x)
+    # That's type-piracy. Remove it once https://github.com/JuliaCI/BenchmarkTools.jl/pull/73
+    # gets decided. Could also be fixed by creating our own "divide" function.
+    Base.:/(a::TrialEstimate, b::TrialEstimate) = ratio(a, b)
+
+    BenchmarkTools.ratio(group1::Group, group2::Group) =
+        if_not_error(()->apply(tr->ratio(value(tr), value(group2)), group1),
+                     group1, group2)
+    BenchmarkTools.judge(group1::Group, group2::Group) =
+        if_not_error(()->apply(tr->judge(value(tr), value(group2)), group1),
+                     group1, group2)
+end
+
 
 end # module

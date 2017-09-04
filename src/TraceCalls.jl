@@ -951,7 +951,8 @@ end
 
 @require BenchmarkTools begin
     using BenchmarkTools: @benchmark, Trial, TrialEstimate, prettytime, prettymemory
-    using BenchmarkTools: memory, ratio, judge
+    using BenchmarkTools: memory, ratio, judge, Benchmark, TrialEstimate, Trial, params
+    using BenchmarkTools: loadparams!, run
 
     export benchmark
     TraceCalls.show_val(io::IO, mime, t::Trial) =
@@ -962,9 +963,18 @@ end
         print(io, "TrialEstimate(", prettytime(time(t)), ", ",
               prettymemory(memory(t)), ")")
 
-    # This trivial definition enables map(median∘benchmark, trace)
-    """ `benchmark(tr::Trace)` calls `@benchmark` on `tr`. """
-    benchmark(tr::Trace) = apply_macro(:@benchmark, tr)
+    """ `benchmark(tr::Trace)` calls `BenchmarkTools.@benchmark` on `tr`. If `tr` is
+    already a benchmark, then we reuse that benchmark's parameters, so the new results
+    are more comparable and faster-computed. """
+    function benchmark(tr::Trace)
+        if value(tr) isa Union{Benchmark, Trial, TrialEstimate}
+            benchmarkable = apply_macro(:@benchmarkable, tr)
+            loadparams!(benchmarkable, params(value(tr)))
+            run(benchmarkable)
+        else
+            apply_macro(:@benchmark, tr)
+        end
+    end
     number(x::TrialEstimate) = time(x)
     # That's type-piracy. Remove it once https://github.com/JuliaCI/BenchmarkTools.jl/pull/73
     # gets decided. Could also be fixed by creating our own "divide" function.
@@ -977,6 +987,9 @@ end
         if_not_error(()->apply(tr->judge(value(tr), value(group2)), group1),
                      group1, group2)
 end
+
+################################################################################
+# TraceGroupBenchmark
 
 
 end # module

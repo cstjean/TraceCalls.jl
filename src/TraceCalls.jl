@@ -17,7 +17,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
     bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby,
-    map_groups
+    map_groups, trace_benchmark
 
 include("code_update.jl")
 
@@ -890,6 +890,7 @@ Base.getindex(gr::Group, i) = gr.traces[i]
 Base.push!(gr::Group, tr::Trace) = push!(gr.traces, tr)
 Base.length(gr::Group) = length(gr.traces)
 Base.endof(gr::Group) = length(gr)
+(grp::Group)() = grp[1]()
 function show_group(io, mime, gr)
     N = length(gr)
     write(io, "$N call", N>1?"s":"", " like ")
@@ -902,6 +903,7 @@ function Base.show(io::IO, mime::MIME"text/html", gr::Group)
     show_group(io, mime, gr)
     write(io, "</pre>")
 end
+Base.show(io::IO, mime::MIME"text/plain", gr::Group) = show_group(io, mime, gr)
 Base.show(io::IO, gr::Group) = show_group(io, MIME"text/plain"(), gr)
 
 apply(mac_or_fun, group::Group) =
@@ -990,6 +992,41 @@ end
 
 ################################################################################
 # TraceGroupBenchmark
+
+struct GroupBenchmark
+    estimator::Function
+    groups::Vector{Group}
+    was_run::Bool
+end
+Base.getindex(gb::GroupBenchmark, ind) = gb.groups[ind]
+Base.length(gb::GroupBenchmark) = length(gb.groups)
+Base.endof(gb::GroupBenchmark) = length(gb)
+
+function show_gb(io::IO, mime, gb::GroupBenchmark)
+    write(io, "Benchmark\n")
+    for group in gb.groups
+        write(io, " ")
+        show(io, mime, group)
+        write(io, "\n")
+    end
+end
+Base.show(io::IO, mime::MIME"text/html", gb::GroupBenchmark) = show_gb(io, mime, gb)
+Base.show(io::IO, mime::MIME"text/plain", gb::GroupBenchmark) = show_gb(io, mime, gb)
+
+trace_benchmark(code::Function, to_trace; estimator=median) =
+    GroupBenchmark(estimator,
+                   groupby(signature, map(tr->:not_run, tracing(code, to_trace))), false)
+trace_benchmark(file_to_include::String, to_trace; kwargs...) =
+    define_benchmark(()->include(file_to_include), to_trace; kwargs...)
+
+@require BenchmarkTools begin
+    BenchmarkTools.run(gb::GroupBenchmark) =
+        GroupBenchmark(gb.estimator, map_groups(gb.estimator∘benchmark, gb.groups), true)
+    BenchmarkTools.ratio(gb1::GroupBenchmark, gb2::GroupBenchmark) =
+        GroupBenchmark(gb1.estimator, map(ratio, gb1.groups, gb2.groups), true)
+    BenchmarkTools.judge(gb1::GroupBenchmark, gb2::GroupBenchmark) =
+        GroupBenchmark(gb1.estimator, map(judge, gb1.groups, gb2.groups), true)
+end
 
 
 end # module

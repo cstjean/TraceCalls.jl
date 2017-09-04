@@ -16,7 +16,8 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
-    bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby
+    bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby,
+    map_groups
 
 include("code_update.jl")
 
@@ -900,9 +901,12 @@ end
 # groupby
 
 struct Group
-    key
+    #key    # temporarily taken out until https://github.com/simonster/JLD2.jl/issues/37
+            # is resolved
     traces::Vector{Trace}
 end
+Group(key, traces) = Group(traces)
+
 Base.getindex(gr::Group, i) = gr.traces[i]
 Base.push!(gr::Group, tr::Trace) = push!(gr.traces, tr)
 Base.length(gr::Group) = length(gr.traces)
@@ -923,9 +927,12 @@ Base.show(io::IO, gr::Group) = show_group(io, MIME"text/plain"(), gr)
 
 apply(mac_or_fun, group::Group) =
     # Only apply mac_or_fun to the first trace, which is assumed to be representative
-    Group(group.key, [map(mac_or_fun, group[1]); group[2:end]])
+    Group([map(mac_or_fun, group[1]); group[2:end]])
 
 measure(mac_or_fun::Union{Expr, Function}, groups::Vector{Group}) =
+    map_groups(mac_or_fun, groups)
+
+map_groups(mac_or_fun, groups::Vector{Group}) =
     Group[apply(mac_or_fun, grp) for grp in groups]
 
 is_inferred(grp::Group) = apply(is_inferred, grp)  # I don't like where this is going...

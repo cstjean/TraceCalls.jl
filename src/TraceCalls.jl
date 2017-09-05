@@ -967,13 +967,16 @@ const judgement_colors = Dict(:invariant=>:black, :regression=>:red, :improvemen
         print(io, "TrialEstimate(", prettytime(time(t)), ", ",
               prettymemory(memory(t)), ")")
 
-    """ `benchmark(tr::Trace)` calls `BenchmarkTools.@benchmark` on `tr`. If `tr` is
-    already a benchmark, then we reuse that benchmark's parameters, so the new results
-    are more comparable and faster-computed. """
-    function benchmark(tr::Trace)
+    """ `benchmark(tr::Trace; warmup=true)` calls `BenchmarkTools.@benchmark` on `tr`. If
+    `tr` is already a benchmark, then we reuse that benchmark's parameters, so the new
+    results are more comparable and faster-computed. """
+    function benchmark(tr::Trace; warmup=true)
         if value(tr) isa Union{Benchmark, Trial, TrialEstimate}
             benchmarkable = apply_macro(:@benchmarkable, tr)
             loadparams!(benchmarkable, params(value(tr)))
+            if warmup;
+                # See https://discourse.julialang.org/t/benchmarktools-theory-and-practice/5728/2
+                BenchmarkTools.warmup(benchmarkable) end
             run(benchmarkable)
         else
             apply_macro(:@benchmark, tr)
@@ -1038,8 +1041,7 @@ signature(grp::Group) = signature(grp[1])
         @assert(map(signature, new_gb.groups) == map(signature, old_gb.groups),
                 "The two GroupBenchmarks are not in the same order. The new benchmark should be computed by calling `run(old_benchmark)`")
         gb = GroupBenchmark(new_gb.estimator, map(judge, new_gb.groups, old_gb.groups))
-        by(grp) = (value(grp) isa Exception ? -1000000 :
-                   -length(grp) * (time(ratio(value(grp)))-1))
+        by(grp) = (value(grp) isa Exception ? -1000000 : -(time(ratio(value(grp)))-1))
         return sort ? Base.sort(gb; by=by) : gb
     end
 end

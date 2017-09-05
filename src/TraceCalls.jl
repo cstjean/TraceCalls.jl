@@ -999,11 +999,12 @@ end
 struct GroupBenchmark
     estimator::Function
     groups::Vector{Group}
-    was_run::Bool
 end
 Base.getindex(gb::GroupBenchmark, ind) = gb.groups[ind]
 Base.length(gb::GroupBenchmark) = length(gb.groups)
 Base.endof(gb::GroupBenchmark) = length(gb)
+Base.sort(gb::GroupBenchmark; kwargs...) =
+    GroupBenchmark(gb.estimator, sort(gb.groups; kwargs...))
 
 function show_gb(io::IO, mime, gb::GroupBenchmark)
     write(io, "Benchmark\n")
@@ -1015,21 +1016,34 @@ function show_gb(io::IO, mime, gb::GroupBenchmark)
 end
 Base.show(io::IO, mime::MIME"text/html", gb::GroupBenchmark) = show_gb(io, mime, gb)
 Base.show(io::IO, mime::MIME"text/plain", gb::GroupBenchmark) = show_gb(io, mime, gb)
-
-trace_benchmark(code::Function, to_trace; estimator=median) =
-    GroupBenchmark(estimator,
-                   groupby(signature, map(tr->:not_run, tracing(code, to_trace))), false)
-trace_benchmark(file_to_include::String, to_trace; kwargs...) =
-    define_benchmark(()->include(file_to_include), to_trace; kwargs...)
+Base.time(grp::Group) = value(grp) isa Exception ? 10000 : length(grp) * time(value(grp))
+signature(grp::Group) = signature(grp[1])
 
 @require BenchmarkTools begin
+    using BenchmarkTools: run
+
+    trace_benchmark(trace::Trace; estimator=median) =
+        sort(run(GroupBenchmark(estimator, groupby(signature, map(tr->:not_run, trace)))),
+             by=time, rev=true)
+    trace_benchmark(code::Function, to_trace; kwargs...) =
+        trace_benchmark(tracing(code, to_trace); kwargs...)
+    trace_benchmark(file_to_include::String, to_trace; kwargs...) =
+        define_benchmark(()->include(file_to_include), to_trace; kwargs...)
     BenchmarkTools.run(gb::GroupBenchmark) =
-        GroupBenchmark(gb.estimator, map_groups(gb.estimator∘benchmark, gb.groups), true)
+        GroupBenchmark(gb.estimator, map_groups(gb.estimator∘benchmark, gb.groups))
     BenchmarkTools.ratio(gb1::GroupBenchmark, gb2::GroupBenchmark) =
-        GroupBenchmark(gb1.estimator, map(ratio, gb1.groups, gb2.groups), true)
-    BenchmarkTools.judge(new_gb::GroupBenchmark, old_gb::GroupBenchmark) =
-        GroupBenchmark(new_gb.estimator, map(judge, new_gb.groups, old_gb.groups), true)
+        GroupBenchmark(gb1.estimator, map(ratio, gb1.groups, gb2.groups))
+    function BenchmarkTools.judge(new_gb::GroupBenchmark, old_gb::GroupBenchmark;
+                                  sort=true)
+        @assert(map(signature, new_gb.groups) == map(signature, old_gb.groups),
+                "The two GroupBenchmarks are not in the same order. The new benchmark should be computed by calling `run(old_benchmark)`")
+        gb = GroupBenchmark(new_gb.estimator, map(judge, new_gb.groups, old_gb.groups))
+        by(grp) = (value(grp) isa Exception ? -1000000 :
+                   -length(grp) * (time(ratio(value(grp)))-1))
+        return sort ? Base.sort(gb; by=by) : gb
+    end
 end
+
 
 
 end # module

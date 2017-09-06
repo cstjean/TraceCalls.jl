@@ -176,6 +176,10 @@ apply_macro(mac::Expr, tr::Trace, mod::Module=Main) =
 and stores the result in `Trace.value` """
 Base.map(f::Function, tr::Trace) = Trace(tr.func, tr.args, tr.kwargs,
                                          [map(f, c) for c in tr.called], f(tr))
+""" `map_trace(f, tr)` is like `map`, but we expect `f(trace)` to return a new Trace """ 
+map_trace(f::Function, tr::Trace) = f(Trace(tr.func, tr.args, tr.kwargs,
+                                            [map_trace(f, c) for c in tr.called],
+                                            tr.value))::Trace
 apply_macro_fn(mac::Union{Symbol, Expr}) = sub->apply_macro(mac, sub)
 Base.map(mac::Union{Symbol, Expr}, tr::Trace) = map(apply_macro_fn(mac), tr)
 """ Similar to `map`, but we apply `filter_fun(f(tr))` to each call, and if it's false,

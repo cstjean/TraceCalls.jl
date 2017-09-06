@@ -23,4 +23,4 @@ off](https://github.com/timholy/Revise.jl#manual-revision) if it's an issue.
 
 # Support
 
-TraceCalls.jl is still somewhat beta (with a few [known limitations](http://nbviewer.jupyter.org/github/cstjean/TraceCalls.jl/blob/master/README.ipynb#Syntax)). If you encounter any problem, please [file an issue](https://github.com/cstjean/TraceCalls.jl/issues), or [ask on Discourse](https://discourse.julialang.org/).
+TraceCalls has a lot of functionality; if you have any question, please don't hesitate to [file an issue](https://github.com/cstjean/TraceCalls.jl/issues), or [ask on Discourse](https://discourse.julialang.org/) and ping me (@cstjean).

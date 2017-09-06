@@ -9,6 +9,8 @@ julia:
 matrix:
     allow_failures:
     - julia: nightly
+# This waits 20 minutes; necessary for the benchmarking to complete
+install: travis_wait mvn install
 notifications:
   email: false
 # uncomment the following lines to override the default test script

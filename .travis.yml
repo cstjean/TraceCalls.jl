@@ -10,7 +10,8 @@ matrix:
     allow_failures:
     - julia: nightly
 # This waits 20 minutes; necessary for the benchmarking to complete
-install: travis_wait mvn install
+# UPDATE: it fails https://travis-ci.org/cstjean/TraceCalls.jl/jobs/272448867
+# install: travis_wait mvn install
 notifications:
   email: false
 # uncomment the following lines to override the default test script

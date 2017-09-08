@@ -15,9 +15,12 @@ matrix:
 notifications:
   email: false
 # uncomment the following lines to override the default test script
-#script:
-#  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-#  - julia -e 'Pkg.clone(pwd()); Pkg.build("TraceCalls"); Pkg.test("TraceCalls"; coverage=true)'
+script:
+  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
+  - julia --color=yes -e 'Pkg.clone(pwd())'
+  - julia --color=yes -e "Pkg.build(\"${JL_PKG}\")"
+  - travis_wait 40 julia --check-bounds=yes --color=yes -e "Pkg.test(\"${JL_PKG}\", coverage=true)"
+#  - travis_wait 40 julia -e 'Pkg.clone(pwd()); Pkg.build("TraceCalls"); Pkg.test("TraceCalls"; coverage=true)'
 after_success:
   # push coverage results to Coveralls
   - julia -e 'cd(Pkg.dir("TraceCalls")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'

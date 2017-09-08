@@ -121,6 +121,8 @@ struct Dummy end
 Base.getindex(tr::Trace, arg::Symbol) =
     (r=Base.get(tr, arg, Dummy())) == Dummy() ? throw(KeyError(arg)) : r
 Base.keys(tr::Trace) = [arg_names(tr)...; map(first, tr.kwargs)...]
+Base.haskey(tr::Trace, key::Symbol) = key in arg_names(tr) || any(key==first(kwa)
+                                                                  for kwa in tr.kwargs)
 """ `objects_in(tr::Trace)` returns the call's arguments and return value in a vector.
 Useful for filtering, eg. `filter(tr->any(obj isa Number && obj < 0 for obj in objects_in(tr)), trace)` will keep all calls that contain some negative number. """
 objects_in(tr::Trace) = [tr.args..., map(last, tr.kwargs)..., value(tr)]

@@ -909,7 +909,6 @@ function Base.show(io::IO, mime::MIME"text/html", gr::Group)
     show_group(io, mime, gr)
     write(io, "</pre>")
 end
-Base.show(io::IO, mime::MIME"text/plain", gr::Group) = show_group(io, mime, gr)
 Base.show(io::IO, gr::Group) = show_group(io, MIME"text/plain"(), gr)
 
 apply(mac_or_fun, group::Group) =

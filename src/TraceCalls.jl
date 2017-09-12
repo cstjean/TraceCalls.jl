@@ -17,7 +17,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
     bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby,
-    map_groups, trace_benchmark
+    map_groups, trace_benchmark, @compilation_times
 
 include("code_update.jl")
 
@@ -101,9 +101,12 @@ Base.sum(f::Function, tr::Trace) = sum(f, collect(tr))
 Base.sum(tr::Trace) = sum(t->t.value, tr)
 Base.all(f::Function, tr::Trace) = all(f, collect(tr))
 Base.all(tr::Trace) = all(t->value(t), collect(tr))
+
+narrow_typeof{T}(t::Type{T}) = Type{T}
+narrow_typeof{T}(t::T) = T
 """ `signature(tr::Trace) = (tr.func, map(typeof, tr.args)...)` - the arguments that this
 call dispatches on. """
-signature(tr::Trace) = (tr.func, map(typeof, tr.args)...)
+signature(tr::Trace) = (tr.func, map(narrow_typeof, tr.args)...)
 arg_names(method::Method) = [Symbol(first(a))
                              for a in Base.arg_decl_parts(method)[2][2:end]
                              if first(a)!=""]
@@ -1051,6 +1054,41 @@ signature(grp::Group) = signature(grp[1])
     end
 end
 
+################################################################################
 
+"""    compilation_times(to_trace, trace::Trace; warmed_up_precompile=true)
+
+Compute the time to compile each distinct call signature in `trace`, then aggregate
+it by method to return a report of how much total time is spent compiling each function
+called by `trace`.
+"""
+function compilation_times(to_trace, trace::Trace; warmed_up_precompile=true)
+    signatures = OrderedSet(signature(tr) for tr in collect(trace))
+    precompile(signature) = Base.precompile(signature[1], signature[2:end])
+    # Recommended, since otherwise compilation times are reported much higher.
+    # My guess is that `precompile(f, type_tuple)` spends a lot of time generating
+    # code for `type_tuple`. Not 100% sure, though.
+    if warmed_up_precompile; foreach(precompile, signatures) end
+    @trace to_trace nothing   # reset Julia's method table for these functions
+    dict = Dict{Any, Float64}()
+    for signature in signatures
+        method = which(signature[1], signature[2:end])
+        dict[method] = get(dict, method, 0) + @elapsed(precompile(signature))
+    end
+    return OrderedDict(sort(collect(dict), by=last, rev=true)...)
+end
+
+""" `@compilation_times to_trace expr` (similar to `@trace to_trace expr`) executes
+`expr` while tracing the modules/functions/files in `to_trace`, then returns an estimate
+of how much time it takes to compile each of the method specializations called within
+`expr`. """
+macro compilation_times(to_trace, expr)
+    @gensym ev_to_trace trace
+    esc(quote
+        $ev_to_trace = $to_trace
+        $trace = $TraceCalls.@trace($ev_to_trace, $expr)
+        $TraceCalls.compilation_times($ev_to_trace, $trace)
+        end)
+end
 
 end # module

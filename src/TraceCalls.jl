@@ -1063,7 +1063,10 @@ it by method to return a report of how much total time is spent compiling each f
 called by `trace`.
 """
 function compilation_times(to_trace, trace::Trace; warmed_up_precompile=true)
-    signatures = OrderedSet(signature(tr) for tr in collect(trace))
+    # My understanding is that `precompile(f)` triggers compilation (or at least,
+    # inference) on some of the functions that `f` calls. Thus, we iterate
+    # `collect(trace)[end:-1:1]` so that the leaves are precompiled first.
+    signatures = OrderedSet(signature(tr) for tr in collect(trace)[end:-1:1])
     precompile(signature) = Base.precompile(signature[1], signature[2:end])
     # Recommended, since otherwise compilation times are reported much higher.
     # My guess is that `precompile(f, type_tuple)` spends a lot of time generating

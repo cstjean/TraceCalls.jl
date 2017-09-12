@@ -697,8 +697,19 @@ is one of `functions` """
 filter_func(functions::Vector, tr::Trace) = filter(tr->tr.func in functions, tr)
 filter_func(func::Function, tr::Trace) = filter_func([func], tr)
 
+function collect_!(trace_list, tr::Trace)
+    push!(trace_list, tr)
+    for sub in tr.called
+        collect_!(trace_list, sub)
+    end
+end
+
 """ `collect(tr::Trace)` returns a vector of all `Trace` objects within `tr`. """
-Base.collect(tr::Trace) = Trace[tr; mapreduce(collect, vcat, [], tr.called)]
+function Base.collect(tr::Trace)
+    trace_list = Trace[]
+    collect_!(trace_list, tr)
+    trace_list
+end
 
 """ `prune(tr::Trace, max_depth::Int=0, max_length::Int=1000000000)` prunes the Trace-tree
 maximum tree depth, and maximum length (number of branches in each node). 

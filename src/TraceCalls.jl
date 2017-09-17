@@ -9,6 +9,7 @@ using Base.Test: @inferred
 using DataStructures: OrderedDict, OrderedSet
 using Memoize
 using Base: url
+using Base.Core: MethodInstance
 using Crayons: Crayon, inv
 import Base: +, -
 
@@ -17,7 +18,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
     bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby,
-    map_groups, trace_benchmark, @compilation_times
+    map_groups, trace_benchmark, @compilation_times, specializations
 
 include("code_update.jl")
 
@@ -1078,6 +1079,8 @@ function compilation_times(to_trace, trace::Trace; warmed_up_precompile=true)
     # My understanding is that `precompile(f)` triggers compilation (or at least,
     # inference) on some of the functions that `f` calls. Thus, we iterate
     # `collect(trace)[end:-1:1]` so that the leaves are precompiled first.
+    # It would potentially be more exact if I used:
+    # https://github.com/JuliaLang/julia/blob/903644385b91ed8d95e5e3a5716c089dd1f1b08a/base/reflection.jl#L710-L714
     signatures = OrderedSet(signature(tr) for tr in collect(trace)[end:-1:1])
     precompile(signature) = Base.precompile(signature[1], signature[2:end])
     # Recommended, since otherwise compilation times are reported much higher.
@@ -1104,6 +1107,20 @@ macro compilation_times(to_trace, expr)
         $trace = $TraceCalls.@trace($ev_to_trace, $expr)
         $TraceCalls.compilation_times($ev_to_trace, $trace)
         end)
+end
+
+################################################################################
+
+specializations(f::Function) =
+    MethodInstance[spec for m in methods(f).ms for spec in specializations(m)]
+specializations(m::Method) = gather_specializations(m.specializations)
+gather_specializations(::Void) = MethodInstance[]  # needs special-casing...
+function gather_specializations(specs::Base.TypeMapEntry)
+    res = MethodInstance[]
+    Base.visit(specs) do spec
+        push!(res, spec)
+    end
+    res
 end
 
 end # module

@@ -1115,12 +1115,27 @@ specializations(f::Function) =
     MethodInstance[spec for m in methods(f).ms for spec in specializations(m)]
 specializations(m::Method) = gather_specializations(m.specializations)
 gather_specializations(::Void) = MethodInstance[]  # needs special-casing...
-function gather_specializations(specs::Base.TypeMapEntry)
+function gather_specializations(specs::Union{Base.TypeMapEntry, Base.TypeMapLevel})
     res = MethodInstance[]
     Base.visit(specs) do spec
         push!(res, spec)
     end
     res
 end
+
+function number_of_specializations(mod::Module)
+    res = []
+    for name in names(mod, true) # see ?names
+        r = @ignore_errors nothing eval(mod, name)
+        if r isa Function
+            specs = specializations(r)
+            if length(specs) > 0
+                push!(res, (r, length(specializations(r))))
+            end
+        end
+    end
+    sort(res, by=last, rev=true)
+end
+
 
 end # module

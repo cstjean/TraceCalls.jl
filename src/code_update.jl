@@ -168,14 +168,16 @@ function revertible_update_helper(fn)
 end
 
 # Return the list of files in `mod`
-# Memoizing is technically wrong, since the user could conceivably add a file.
-# This seems OK until Revise.jl provides module_files
-@memoize ObjectIdDict function module_files(mod::Module)
+function module_files(mod::Module)
     if Base.find_source_file(string(mod)) isa Void
         error("TraceCalls error: module $mod's definition file must be in the LOAD_PATH, and it must have been loaded with `using/import/require` (not `include`).")
     else
-        # copy because Revise.jl aggressively reuses objects
-        copy(Revise.parse_pkg_files(Symbol(mod)))
+        if !haskey(Revise.module2files, Symbol(mod))
+            # This will happen, for instance, for modules that were loaded before Revise
+            # was loaded.
+            Revise.parse_pkg_files(Symbol(mod))
+        end
+        return Revise.module2files[Symbol(mod)]
     end
 end
 

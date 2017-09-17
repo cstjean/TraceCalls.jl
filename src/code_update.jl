@@ -9,7 +9,7 @@ import ClobberingReload
 using ClobberingReload: scrub_redefinition_warnings
 
 export apply_code!, revert_code!, update_code_revertible, RevertibleCodeUpdate,
-    CodeUpdate, EvalableCode, source
+    CodeUpdate, source
 
 ################################################################################
 
@@ -33,8 +33,8 @@ struct CodeUpdate
 end
 CodeUpdate() = CodeUpdate(ModDict())
 
-""" `CodeUpdate(::Vector{EvalableCode})` is merely a collection of `EvalableCode`.
-Support `apply_code!(::CodeUpdate)`, and can be `merge`d together. """
+""" `CodeUpdate(::ModDict)` supports `apply_code!(::CodeUpdate)`, and can be `merge`d
+together. """
 function Base.merge(cu1::CodeUpdate, cus::CodeUpdate...)
     md = ModDict()
     for cu in [cu1, cus...]

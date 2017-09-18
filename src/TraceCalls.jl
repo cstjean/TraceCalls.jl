@@ -955,7 +955,7 @@ macro delegate_to_group(funs...)
            for fun in funs]...)
         end)
 end
-@delegate_to_group is_inferred
+is_inferred(grp::Group) = is_inferred(grp[1])
 
 redgreen(grp::Group) = Group([redgreen(grp[1]); grp[2:end]])
 
@@ -1136,6 +1136,9 @@ function number_of_specializations(mod::Module)
     end
     sort(res, by=last, rev=true)
 end
+
+is_inferred(spec::MethodInstance) =
+    isleaftype(spec.rettype)   # seems reasonable, but not 100% sure
 
 
 end # module

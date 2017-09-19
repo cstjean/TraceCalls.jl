@@ -1136,6 +1136,8 @@ function number_of_specializations(mod::Module)
     end
     sort(res, by=last, rev=true)
 end
+number_of_specializations(fun::Function) =
+    sort([(m, length(specializations(m))) for m in methods(fun)], by=last, rev=true)
 
 is_inferred(spec::MethodInstance) =
     isleaftype(spec.rettype)   # seems reasonable, but not 100% sure

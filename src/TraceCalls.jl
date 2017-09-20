@@ -208,8 +208,10 @@ const current_called =
     fill(Trace[]) # the current vector onto which to tack the next function calls
 
 is_traceable(def) =
-    (is_function_definition(def) && (di=splitdef(def); !is_call_definition(di)) &&
-     !is_fancy_constructor_definition(di))
+    (is_generated_function_definition(def) ?
+     is_traceable(generated2normal(def)) :
+     (is_function_definition(def) && (di=splitdef(def); !is_call_definition(di)) &&
+      !is_fancy_constructor_definition(di)))
 
 """ `@traceable_loose(expr)` is like `traceable(expr)`, but doesn't error on non-function
 definitions (it's a helper for `@traceable begin ... end`) """
@@ -229,7 +231,7 @@ its arguments. For example, `TraceCalls.store(x::Vector) = copy(x)`. See also ?R
 store(x) = x
 
 """  Takes a function definition, and returns a traceing version of it. """
-function tracing_code(fdef::Expr)::Expr
+function tracing_code_function(fdef::Expr)::Expr
     arg_name(arg) = splitarg(arg)[1]
     is_splat(arg) = splitarg(arg)[3]
     arg_name_splat(arg) = is_splat(arg) ? Expr(:..., arg_name(arg)) : arg_name(arg)
@@ -284,6 +286,13 @@ function tracing_code(fdef::Expr)::Expr
     end
 end
 
+tracing_code_generated(fdef::Expr) = nothing
+
+tracing_code(fdef::Expr) =
+    (is_generated_function_definition(fdef) ?
+     tracing_code_generated(fdef) :
+     tracing_code_function(fdef))
+
 """ `@traceable function foo(...) ... end` makes that function definition traceable
 with the `@trace` macro (eg. as `@trace () foo(...)`). """
 macro traceable(fdef::Expr)
@@ -312,7 +321,8 @@ end
 # There might be an issue with the memo if we decide to macroexpand the code, since the
 # macroexpansion depends on the environment. It's probably a negligible issue.
 @memoize Dict{Tuple{Expr}, Any} function traceable_update_handle_expr(expr0::Expr)
-    expr = strip_docstring(expr0)
+    # maybe strip_docstring is not necessary anymore - September '17
+    expr = strip_docstring(expr0) 
     is_traceable(expr) ? tracing_code(expr) : nothing
 end
 traceable_update_handle_expr(::Any) = nothing

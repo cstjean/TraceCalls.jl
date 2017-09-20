@@ -139,6 +139,15 @@ function is_function_definition(expr::Expr)
     l.head == :function && length(l.args) > 1 # `function foo end` is not a definition
 end
 is_function_definition(::Any) = false
+""" `generated2normal(expr::Expr)` makes a normal function out of the staged function.
+This, of course, DOES NOT PRESERVE SEMANTICS. It's only useful to parse to `splitdef`
+et al. """
+function generated2normal(expr::Expr)
+    @assert is_generated_function_definition(expr)
+    Expr(:function, expr.args[1], expr.args[2:end]...)
+end
+is_generated_function_definition(expr::Expr) = expr.head == :stagedfunction
+is_generated_function_definition(::Any) = false
 
 is_call_definition(fundef_di::Dict) = @capture(fundef_di[:name], (a_::b_) | (::b_))
 is_call_definition(fundef) = is_call_definition(splitdef(fundef))

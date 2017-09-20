@@ -48,9 +48,10 @@ upd_include() do
     @test apple() == :orange
     @test plant() == "happy"
     dog()
+    inlined()
 end
 apple()
-@test counter[] == 8
+@test counter[] == 9
     
 ################################################################################
 

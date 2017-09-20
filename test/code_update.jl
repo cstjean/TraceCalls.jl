@@ -46,9 +46,11 @@ end
 @test counter[] == 5 # three calls, since `bar` also becomes counting
 upd_include() do
     @test apple() == :orange
+    @test plant() == "happy"
+    dog()
 end
 apple()
-@test counter[] == 6
+@test counter[] == 8
     
 ################################################################################
 

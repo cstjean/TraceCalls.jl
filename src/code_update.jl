@@ -187,15 +187,27 @@ end
 is_macro_call(ex) = false
 is_macro_call(ex::Expr) = ex.head==:macrocall
 
-function expand_macros(os::OrderedSet{RelocatableExpr})
+function expand_macros(mod::Module, os::OrderedSet{RelocatableExpr})
     new_set = OrderedSet{RelocatableExpr}()
-    for rex in os
-        push!(new_set, MakeRelocatableExpr(to_expr(rex)))
+    trav(::Any) = nothing
+    trav(rex::RelocatableExpr) = trav(to_expr(rex))
+    function trav(expr::Expr)
+        if Revise.isdocexpr(expr)
+            trav(expr.args[Revise.nargs_docexpr])
+        elseif is_macro_call(expr)
+            # I wish I could just macroexpand the top-level. #21662
+            trav(MacroTools.macroexpandmodule(mod, expr))
+        elseif expr.head in (:begin, :block)
+            foreach(trav, expr.args)
+        else
+            push!(new_set, MakeRelocatableExpr(expr))
+        end
     end
+    foreach(trav, os)
     new_set
 end
 expand_macros(md::ModDict) =
-    Dict(mod=>expand_macros(rexes) for (mod, rexes) in md)
+    Dict(mod=>expand_macros(mod, rexes) for (mod, rexes) in md)
 
 code_of(mod::Module) = 
     merge((code_of(mod, file) for file in module_files(mod))...)

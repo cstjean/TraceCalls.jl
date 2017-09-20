@@ -8,8 +8,11 @@ using Revise: ModDict, parse_source, RelocatableExpr
 import ClobberingReload
 using ClobberingReload: scrub_redefinition_warnings
 
-export apply_code!, revert_code!, update_code_revertible, RevertibleCodeUpdate,
-    CodeUpdate, source
+# This was exported back when it was stand-alone functionality, but it's an implementation
+# detail for TraceCalls
+# export apply_code!, revert_code!, update_code_revertible, RevertibleCodeUpdate,
+#     CodeUpdate, source
+export source
 
 ################################################################################
 

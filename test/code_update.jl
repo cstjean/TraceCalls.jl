@@ -1,5 +1,8 @@
 import ClobberingReload
 
+using TraceCalls: apply_code!, revert_code!, update_code_revertible, RevertibleCodeUpdate,
+    CodeUpdate, source
+
 a = ClobberingReload.parse_file("docstring.jl")[1] # TODO: see comment in that file
 @test TraceCalls.strip_docstring(a).head == :function
 

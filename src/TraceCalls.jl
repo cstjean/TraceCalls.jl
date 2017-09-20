@@ -382,7 +382,7 @@ function recording_trace(fun::Function)
     top_trace
 end    
 
-function tracing(body::Function, to_trace=())
+function trace(body::Function, to_trace=())
     with_tracing_definitions(to_trace) do
         # To debug, just use `with_tracing_definitions()` interactively
         recording_trace(body)
@@ -390,11 +390,11 @@ function tracing(body::Function, to_trace=())
 end
 
 macro trace(expr)
-    :($TraceCalls.tracing(()->$(esc(expr))))
+    :($TraceCalls.trace(()->$(esc(expr))))
 end
 
 macro trace(to_trace, expr)
-    :($TraceCalls.tracing(()->$(esc(expr)), $(esc(to_trace))))
+    :($TraceCalls.trace(()->$(esc(expr)), $(esc(to_trace))))
 end
 
 ################################################################################
@@ -1050,7 +1050,7 @@ signature(grp::Group) = signature(grp[1])
         sort(run(GroupBenchmark(estimator, groupby(signature, map(tr->:not_run, trace)))),
              by=time, rev=true)
     trace_benchmark(code::Function, to_trace; kwargs...) =
-        trace_benchmark(tracing(code, to_trace); kwargs...)
+        trace_benchmark(trace(code, to_trace); kwargs...)
     trace_benchmark(file_to_include::String, to_trace; kwargs...) =
         define_benchmark(()->include(file_to_include), to_trace; kwargs...)
     BenchmarkTools.run(gb::GroupBenchmark) =

@@ -184,11 +184,25 @@ function module_files(mod::Module)
     end
 end
 
+is_macro_call(ex) = false
+is_macro_call(ex::Expr) = ex.head==:macrocall
+
+function expand_macros(os::OrderedSet{RelocatableExpr})
+    new_set = OrderedSet{RelocatableExpr}()
+    for rex in os
+        push!(new_set, MakeRelocatableExpr(to_expr(rex)))
+    end
+    new_set
+end
+expand_macros(md::ModDict) =
+    Dict(mod=>expand_macros(rexes) for (mod, rexes) in md)
+
 code_of(mod::Module) = 
     merge((code_of(mod, file) for file in module_files(mod))...)
            
 code_of(mod::Module, file::String) =
-    (haskey(Revise.file2modules, file) ? CodeUpdate(Revise.file2modules[file].md) :
+    (haskey(Revise.file2modules, file) ?
+     CodeUpdate(expand_macros(Revise.file2modules[file].md)) :
      CodeUpdate())
 function code_of(included_file::String)::CodeUpdate
     parse_source(included_file, Main, pwd())

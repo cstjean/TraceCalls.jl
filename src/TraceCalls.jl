@@ -14,7 +14,7 @@ using Crayons: Crayon, inv
 import Base: +, -
 
 export @traceable, @trace, Trace, prune, FontColor, Bold,
-    is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
+    is_inferred, map_is_inferred, redgreen, greenred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
     bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby,
@@ -745,12 +745,6 @@ function is_inferred(tr::Trace)
     end
 end
 map_is_inferred(tr::Trace) = redgreen(map(is_inferred, tr))
-""" `@trace_inferred ...some_expression...` computes the trace of `some_expression`,
-and shows `true` for all type-stable function calls in the trace, and `false` otherwise.
-"""
-macro trace_inferred(expr)
-    esc(:($TraceCalls.map_is_inferred($TraceCalls.@trace $expr)))
-end
 
 function redgreen(x::Number)
     # red is ff0000, of course...

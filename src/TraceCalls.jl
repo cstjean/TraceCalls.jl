@@ -1123,6 +1123,12 @@ function gather_specializations(specs::Union{Base.TypeMapEntry, Base.TypeMapLeve
     res
 end
 
+is_compiled(spec::MethodInstance) = spec.fptr!=C_NULL
+
+"""    number_of_specializations(obj::Module/Function)
+
+For each function/method in `obj`, return the number of specializations, and the
+number of _compiled_ specializations (excluding those that were merely inferred). """
 function number_of_specializations(mod::Module)
     res = []
     for name in names(mod, true) # see ?names
@@ -1130,14 +1136,16 @@ function number_of_specializations(mod::Module)
         if r isa Function
             specs = specializations(r)
             if length(specs) > 0
-                push!(res, (r, length(specializations(r))))
+                push!(res, (r, length(specs), count(is_compiled, specs)))
             end
         end
     end
     sort(res, by=last, rev=true)
 end
 number_of_specializations(fun::Function) =
-    sort([(m, length(specializations(m))) for m in methods(fun)], by=last, rev=true)
+    sort([(specs = specializations(m);
+           (m, length(specs), count(is_compiled, specs)))
+          for m in methods(fun)], by=last, rev=true)
 
 is_inferred(spec::MethodInstance) =
     isleaftype(spec.rettype)   # seems reasonable, but not 100% sure

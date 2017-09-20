@@ -11,3 +11,4 @@ DiffEqBase
 LightGraphs
 Calculus
 BenchmarkTools
+SimpleTraits

@@ -184,11 +184,42 @@ function module_files(mod::Module)
     end
 end
 
+is_macro_call(ex) = false
+is_macro_call(ex::Expr) = ex.head==:macrocall
+
+# Helper function, from Compat. Use Base.macroexpand in 0.7
+macroexpandmodule(mod::Module, x::ANY) = eval(mod, :(macroexpand($(QuoteNode(x)))))
+
+#dbg = []
+function expand_macros(mod::Module, os::OrderedSet{RelocatableExpr})
+    new_set = OrderedSet{RelocatableExpr}()
+    trav(::Any) = nothing
+    trav(rex::RelocatableExpr) = trav(convert(Expr, rex))
+    function trav(expr::Expr)
+        if Revise.isdocexpr(expr)
+            trav(expr.args[Revise.nargs_docexpr])
+        elseif is_macro_call(expr)
+            #push!(dbg, (expr => macroexpandmodule(mod, expr)))
+            # I wish I could just macroexpand the top-level. #21662
+            trav(macroexpandmodule(mod, expr))
+        elseif expr.head in (:begin, :block)
+            foreach(trav, expr.args)
+        else
+            push!(new_set, MakeRelocatableExpr(expr))
+        end
+    end
+    foreach(trav, os)
+    new_set
+end
+expand_macros(md::ModDict) =
+    Dict(mod=>expand_macros(mod, rexes) for (mod, rexes) in md)
+
 code_of(mod::Module) = 
     merge((code_of(mod, file) for file in module_files(mod))...)
            
 code_of(mod::Module, file::String) =
-    (haskey(Revise.file2modules, file) ? CodeUpdate(Revise.file2modules[file].md) :
+    (haskey(Revise.file2modules, file) ?
+     CodeUpdate(expand_macros(Revise.file2modules[file].md)) :
      CodeUpdate())
 function code_of(included_file::String)::CodeUpdate
     parse_source(included_file, Main, pwd())

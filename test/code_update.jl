@@ -52,6 +52,13 @@ upd_include() do
 end
 apple()
 @test counter[] == 9
+upd_include() do
+    # The number of counter hits here depends on the SimpleTraits macroexpansion.
+    # Right now, each call has four hits - September'17
+    f(1.0)
+    f(0.0)
+end
+@test counter[] == 17
     
 ################################################################################
 

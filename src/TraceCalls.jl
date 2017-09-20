@@ -372,12 +372,18 @@ function get_error_or_value(f)
     end
 end
 
+struct Root
+    fun::Function
+end
+Base.show(io::IO, root::Root) = write(io, "Root$(root.fun)")
+(r::Root)() = r.fun()
+
 """ `recording_trace(fun::Function)` sets up a fresh Trace recording state, then executes
 `fun` and returns the resulting Trace object. """
 function recording_trace(fun::Function)
     current_called[] = called = Trace[]
     res = get_error_or_value(fun)
-    top_trace = Trace(fun, (), (), called, res)
+    top_trace = Trace(Root(fun), (), (), called, res)
     current_called[] = Trace[] # don't hang on to that memory unnecessarily
     top_trace
 end    

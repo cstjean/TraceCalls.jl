@@ -89,6 +89,11 @@ tr_mouse2 = @trace generated_mouse generated_mouse("hey")
 @test TraceCalls.value(tr_mouse) == "hey DataType"
 @test ctree_size(tr_mouse) == ctree_size(tr_mouse2) == 2
 
+# JuliaLang#23809
+tr_missing = @trace "incl.jl" generated_missing("hey")
+@test ctree_size(tr_missing) == 2
+
+
 ################################################################################
 # Testing with popular packages
 import ClobberingReload

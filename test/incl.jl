@@ -27,6 +27,7 @@ isnice(::Type{Float64}) = false
 ################################################################################
 
 @generated generated_mouse(x::String) = :(string(x, " ", $(typeof(x))))
+@generated generated_missing(::Any) = 42  # JuliaLang#23809
 
 ################################################################################
 

@@ -13,10 +13,13 @@ macro traceable_loose(expr)
     is_traceable(expr) ? esc(:($TraceCalls.@traceable $expr)) : esc(expr)
 end
 
+global gensym_counter = 0  # necessary because of JuliaLang#23809
+my_gensym() = Symbol(:__tc_gensym_, (global gensym_counter+=1;))
+
 """ Turns `::Int=5` (and `_`) into `some_gensym::Int=5` """
 function handle_missing_arg(arg)
     arg_name, arg_type, is_splat, default = splitarg(arg)
-    combinearg((arg_name === nothing || arg_name == :_) ? gensym() : arg_name,
+    combinearg((arg_name === nothing || arg_name == :_) ? my_gensym() : arg_name,
                arg_type, is_splat, default)
 end
 

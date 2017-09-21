@@ -14,7 +14,7 @@ using Crayons: Crayon, inv
 import Base: +, -
 
 export @traceable, @trace, Trace, prune, FontColor, Bold,
-    is_inferred, map_is_inferred, redgreen, greenred, @trace_inferred,
+    is_inferred, map_is_inferred, redgreen, greenred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
     bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby,
@@ -208,8 +208,10 @@ const current_called =
     fill(Trace[]) # the current vector onto which to tack the next function calls
 
 is_traceable(def) =
-    (is_function_definition(def) && (di=splitdef(def); !is_call_definition(di)) &&
-     !is_fancy_constructor_definition(di))
+    (is_generated_function_definition(def) ?
+     is_traceable(generated2normal(def)) :
+     (is_function_definition(def) && (di=splitdef(def); !is_call_definition(di)) &&
+      !is_fancy_constructor_definition(di)))
 
 """ `@traceable_loose(expr)` is like `traceable(expr)`, but doesn't error on non-function
 definitions (it's a helper for `@traceable begin ... end`) """
@@ -228,24 +230,22 @@ end
 its arguments. For example, `TraceCalls.store(x::Vector) = copy(x)`. See also ?REPR. """
 store(x) = x
 
-"""  Takes a function definition, and returns a traceing version of it. """
-function tracing_code(fdef::Expr)::Expr
-    arg_name(arg) = splitarg(arg)[1]
-    is_splat(arg) = splitarg(arg)[3]
-    arg_name_splat(arg) = is_splat(arg) ? Expr(:..., arg_name(arg)) : arg_name(arg)
-    function typed_arg(arg)
-        name, arg_type = splitarg(arg)
-        if is_splat(arg) arg_type = Any end
-        return :($name::$arg_type)
-    end
-    
-    di = splitdef(fdef)
+arg_name(arg) = splitarg(arg)[1]
+is_splat(arg) = splitarg(arg)[3]
+arg_name_splat(arg) = is_splat(arg) ? Expr(:..., arg_name(arg)) : arg_name(arg)
+function typed_arg(arg)
+    name, arg_type = splitarg(arg)
+    if is_splat(arg) arg_type = Any end
+    return :($name::$arg_type)
+end
+
+function tracing_fun(splitdef_di::Dict, do_body_name::Symbol)::Dict
+    # Returns a function definition that stores its arguments as a Trace and passes
+    # them to do_body_name
+    di = splitdef_di
     di[:args] = map(handle_missing_arg, di[:args])
     di[:kwargs] = map(handle_missing_arg, di[:kwargs])
     fname = di[:name]
-
-    do_body_di = copy(di)
-    do_body_di[:name] = do_body = isa(fname, Expr) ? gensym() : gensym(fname)
 
     updated_fun_di = copy(di)
     passed_args = map(arg_name_splat, di[:args])
@@ -263,8 +263,8 @@ function tracing_code(fdef::Expr)::Expr
         $trace_kwargs = ($(passed_kwargs...),)
         $TraceCalls.current_called[] = $called = $TraceCalls.Trace[]
         try
-            $res = $do_body($(map(arg_name_splat, di[:args])...);
-                            $(passed_kwargs...))
+            $res = $do_body_name($(map(arg_name_splat, di[:args])...);
+                                 $(passed_kwargs...))
         catch $e
             push!($prev_called,
                   $TraceCalls.Trace($fname, $trace_args, $trace_kwargs,
@@ -278,11 +278,41 @@ function tracing_code(fdef::Expr)::Expr
                                 $called, $TraceCalls.store($res)))
         return $res
     end
+    updated_fun_di
+end
+
+function do_body_fun(di)
+    fname = di[:name]
+    do_body_di = copy(di)
+    do_body_di[:name] = fname = isa(fname, Expr) ? gensym() : gensym(fname)
+    combinedef(do_body_di), fname
+end    
+
+function tracing_code_function(fdef::Expr)
+    di = splitdef(fdef)
+    do_body_fdef, do_body = do_body_fun(di)
     quote
-        @inline $(combinedef(do_body_di))
-        $(combinedef(updated_fun_di))
+        @inline $do_body_fdef
+        $(combinedef(tracing_fun(di, do_body)))
     end
 end
+
+function tracing_code_generated(fdef::Expr)
+    di = splitdef(generated2normal(fdef))
+    do_body_fdef, do_body = do_body_fun(di)
+    tfun_di = tracing_fun(di, do_body)
+    tfun_di[:body] = Expr(:quote, tfun_di[:body])
+    quote
+        $(normal2generated(do_body_fdef))
+        $(normal2generated(combinedef(tfun_di)))
+    end
+end
+
+"""  Takes a function definition, and returns a tracing version of it. """
+tracing_code(fdef::Expr) =
+    (is_generated_function_definition(fdef) ?
+     tracing_code_generated(fdef) :
+     tracing_code_function(fdef))
 
 """ `@traceable function foo(...) ... end` makes that function definition traceable
 with the `@trace` macro (eg. as `@trace () foo(...)`). """
@@ -312,7 +342,8 @@ end
 # There might be an issue with the memo if we decide to macroexpand the code, since the
 # macroexpansion depends on the environment. It's probably a negligible issue.
 @memoize Dict{Tuple{Expr}, Any} function traceable_update_handle_expr(expr0::Expr)
-    expr = strip_docstring(expr0)
+    # maybe strip_docstring is not necessary anymore - September '17
+    expr = strip_docstring(expr0) 
     is_traceable(expr) ? tracing_code(expr) : nothing
 end
 traceable_update_handle_expr(::Any) = nothing
@@ -745,12 +776,6 @@ function is_inferred(tr::Trace)
     end
 end
 map_is_inferred(tr::Trace) = redgreen(map(is_inferred, tr))
-""" `@trace_inferred ...some_expression...` computes the trace of `some_expression`,
-and shows `true` for all type-stable function calls in the trace, and `false` otherwise.
-"""
-macro trace_inferred(expr)
-    esc(:($TraceCalls.map_is_inferred($TraceCalls.@trace $expr)))
-end
 
 function redgreen(x::Number)
     # red is ff0000, of course...

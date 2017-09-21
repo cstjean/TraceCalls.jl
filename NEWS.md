@@ -10,3 +10,5 @@ stack trace (see `@stacktrace`). Similarly for `top`.
 added for quickly surverying large traces. See `?measure` and the user manual.
 - New user manual sections, "Saving traces to disk" and "Tracing tips"
 - New profiling features, `trace_benchmark` and `@compilation_times`. See the manual - "Grouping and benchmarking"
+- Functions that are defined behind macros (such as `@inline`, or `@traitfn`) are now
+traceable.

@@ -24,3 +24,6 @@ isnice(::Type{Float64}) = false
 @traitfn f{X; IsNice{X}}(x::X) = "Very nice!"
 @traitfn f{X; !IsNice{X}}(x::X) = "Not so nice!"
 
+################################################################################
+
+@generated generated_mouse(x::String) = :(string(x, " ", $(typeof(x))))

@@ -230,24 +230,21 @@ end
 its arguments. For example, `TraceCalls.store(x::Vector) = copy(x)`. See also ?REPR. """
 store(x) = x
 
-"""  Takes a function definition, and returns a traceing version of it. """
-function tracing_code_function(fdef::Expr)::Expr
-    arg_name(arg) = splitarg(arg)[1]
-    is_splat(arg) = splitarg(arg)[3]
-    arg_name_splat(arg) = is_splat(arg) ? Expr(:..., arg_name(arg)) : arg_name(arg)
-    function typed_arg(arg)
-        name, arg_type = splitarg(arg)
-        if is_splat(arg) arg_type = Any end
-        return :($name::$arg_type)
-    end
-    
-    di = splitdef(fdef)
+arg_name(arg) = splitarg(arg)[1]
+is_splat(arg) = splitarg(arg)[3]
+arg_name_splat(arg) = is_splat(arg) ? Expr(:..., arg_name(arg)) : arg_name(arg)
+function typed_arg(arg)
+    name, arg_type = splitarg(arg)
+    if is_splat(arg) arg_type = Any end
+    return :($name::$arg_type)
+end
+
+"""  Takes a function definition, and returns a tracing version of it. """
+function tracing_fun(splitdef_di::Dict, do_body_name::Symbol)::Expr
+    di = splitdef_di
     di[:args] = map(handle_missing_arg, di[:args])
     di[:kwargs] = map(handle_missing_arg, di[:kwargs])
     fname = di[:name]
-
-    do_body_di = copy(di)
-    do_body_di[:name] = do_body = isa(fname, Expr) ? gensym() : gensym(fname)
 
     updated_fun_di = copy(di)
     passed_args = map(arg_name_splat, di[:args])
@@ -265,8 +262,8 @@ function tracing_code_function(fdef::Expr)::Expr
         $trace_kwargs = ($(passed_kwargs...),)
         $TraceCalls.current_called[] = $called = $TraceCalls.Trace[]
         try
-            $res = $do_body($(map(arg_name_splat, di[:args])...);
-                            $(passed_kwargs...))
+            $res = $do_body_name($(map(arg_name_splat, di[:args])...);
+                                 $(passed_kwargs...))
         catch $e
             push!($prev_called,
                   $TraceCalls.Trace($fname, $trace_args, $trace_kwargs,
@@ -280,13 +277,23 @@ function tracing_code_function(fdef::Expr)::Expr
                                 $called, $TraceCalls.store($res)))
         return $res
     end
+    combinedef(updated_fun_di)
+end
+
+function tracing_code_function(fdef::Expr)
+    di = splitdef(fdef)
+    fname = di[:name]
+    do_body_di = copy(di)
+    do_body_di[:name] = do_body = isa(fname, Expr) ? gensym() : gensym(fname)
     quote
         @inline $(combinedef(do_body_di))
-        $(combinedef(updated_fun_di))
+        $(tracing_fun(di, do_body))
     end
 end
 
-tracing_code_generated(fdef::Expr) = nothing
+function tracing_code_generated(fdef::Expr)
+    nothing
+end
 
 tracing_code(fdef::Expr) =
     (is_generated_function_definition(fdef) ?

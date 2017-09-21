@@ -144,8 +144,13 @@ This, of course, DOES NOT PRESERVE SEMANTICS. It's only useful to parse to `spli
 et al. """
 function generated2normal(expr::Expr)
     @assert is_generated_function_definition(expr)
-    Expr(:function, expr.args[1], expr.args[2:end]...)
+    Expr(:function, expr.args...)
 end
+function normal2generated(expr::Expr)
+    @assert expr.head == :function
+    Expr(:stagedfunction, expr.args...)
+end
+    
 is_generated_function_definition(expr::Expr) = expr.head == :stagedfunction
 is_generated_function_definition(::Any) = false
 

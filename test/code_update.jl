@@ -59,6 +59,14 @@ upd_include() do
     f(0.0)
 end
 @test counter[] == 17
+## upd_include isn't written to test generated functions. Could be fixed, but I'm testing
+## them already with `@trace` in runtests.jl
+# @test generated_mouse("hey") == "hey DataType"
+# upd_include() do
+#     @test generated_mouse("hey") == "hey DataType"
+# end
+# @test generated_mouse("hey") == "hey DataType"
+# @test counter[] == 18
     
 ################################################################################
 

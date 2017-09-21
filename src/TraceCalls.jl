@@ -239,7 +239,7 @@ function typed_arg(arg)
     return :($name::$arg_type)
 end
 
-function tracing_fun(splitdef_di::Dict, do_body_name::Symbol)::Expr
+function tracing_fun(splitdef_di::Dict, do_body_name::Symbol)::Dict
     # Returns a function definition that stores its arguments as a Trace and passes
     # them to do_body_name
     di = splitdef_di
@@ -278,22 +278,34 @@ function tracing_fun(splitdef_di::Dict, do_body_name::Symbol)::Expr
                                 $called, $TraceCalls.store($res)))
         return $res
     end
-    combinedef(updated_fun_di)
+    updated_fun_di
 end
+
+function do_body_fun(di)
+    fname = di[:name]
+    do_body_di = copy(di)
+    do_body_di[:name] = fname = isa(fname, Expr) ? gensym() : gensym(fname)
+    combinedef(do_body_di), fname
+end    
 
 function tracing_code_function(fdef::Expr)
     di = splitdef(fdef)
-    fname = di[:name]
-    do_body_di = copy(di)
-    do_body_di[:name] = do_body = isa(fname, Expr) ? gensym() : gensym(fname)
+    do_body_fdef, do_body = do_body_fun(di)
     quote
-        @inline $(combinedef(do_body_di))
-        $(tracing_fun(di, do_body))
+        @inline $do_body_fdef
+        $(combinedef(tracing_fun(di, do_body)))
     end
 end
 
 function tracing_code_generated(fdef::Expr)
-    nothing
+    di = splitdef(generated2normal(fdef))
+    do_body_fdef, do_body = do_body_fun(di)
+    tfun_di = tracing_fun(di, do_body)
+    tfun_di[:body] = Expr(:quote, tfun_di[:body])
+    quote
+        $(normal2generated(do_body_fdef))
+        $(normal2generated(combinedef(tfun_di)))
+    end
 end
 
 """  Takes a function definition, and returns a tracing version of it. """

@@ -239,8 +239,9 @@ function typed_arg(arg)
     return :($name::$arg_type)
 end
 
-"""  Takes a function definition, and returns a tracing version of it. """
 function tracing_fun(splitdef_di::Dict, do_body_name::Symbol)::Expr
+    # Returns a function definition that stores its arguments as a Trace and passes
+    # them to do_body_name
     di = splitdef_di
     di[:args] = map(handle_missing_arg, di[:args])
     di[:kwargs] = map(handle_missing_arg, di[:kwargs])
@@ -295,6 +296,7 @@ function tracing_code_generated(fdef::Expr)
     nothing
 end
 
+"""  Takes a function definition, and returns a tracing version of it. """
 tracing_code(fdef::Expr) =
     (is_generated_function_definition(fdef) ?
      tracing_code_generated(fdef) :

@@ -19,9 +19,6 @@ struct FontColor
     color
     content
 end
-apply_to_value(f::Function, x::FontColor) =
-    FontColor(x.color, apply_to_value(f, x.content))
-value(x::FontColor) = x.content
 show_return_val(io::IO, mime, x::Exception) = try_show_val(io, mime, FontColor("red", x))
 """ `TraceCalls.show_val(io::IO, mime, x)` is the HTML used by `TraceCalls` to display
 each value (arguments and return values). Customize it by overloading. Defaults to

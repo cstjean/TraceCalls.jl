@@ -187,7 +187,7 @@ end
 # Return the list of files in `mod`
 function module_files(mod::Module)
     if Base.find_source_file(string(mod)) isa Void
-        error("TraceCalls error: module $mod's definition file must be in the LOAD_PATH, and it must have been loaded with `using/import/require` (not `include`).")
+        error("TraceCalls error: cannot trace module $mod. It must be defined in a file called $mod.jl whose directory is in LOAD_PATH, and it must have been loaded with `using/import/require` (not `include`).")
     else
         if !haskey(Revise.module2files, Symbol(mod))
             # This will happen, for instance, for modules that were loaded before Revise
@@ -231,10 +231,18 @@ expand_macros(md::ModDict) =
 code_of(mod::Module) = 
     merge((code_of(mod, file) for file in module_files(mod))...)
            
-code_of(mod::Module, file::String) =
-    (haskey(Revise.file2modules, file) ?
-     CodeUpdate(expand_macros(Revise.file2modules[file].md)) :
-     CodeUpdate())
+function code_of(mod::Module, file::String)
+    if haskey(Revise.file2modules, file) 
+        CodeUpdate(expand_macros(Revise.file2modules[file].md))
+    elseif mod==Main
+        # That's a bit of a hack, to support interactively-included files. I think it's
+        # OK, but not 100% sure. See also Revise#40
+        Revise.parse_source(file, Main, dirname(file))
+        return (haskey(Revise.file2modules, file) ? code_of(mod, file) : CodeUpdate())
+    else
+        CodeUpdate()
+    end
+end
 function code_of(included_file::String)::CodeUpdate
     parse_source(included_file, Main, pwd())
     code_of(Main, included_file)
@@ -291,6 +299,8 @@ function get_function(mod::Module, def)
     if is_function_definition(expr) &&
         !is_call_definition(expr)
         return get_function_(mod, expr)
+    elseif is_generated_function_definition(expr)
+        return get_function_(mod, generated2normal(expr))
     else
         return nothing
     end
@@ -299,11 +309,11 @@ end
 function code_of(fn::Union{Function, Type}; when_missing=warn)::CodeUpdate
     if when_missing in (false, nothing); when_missing = _->nothing end
     function process(mod, file, correct_count)
-        if mod == Main || file === nothing
+        if file === nothing
             when_missing(UpdateInteractiveFailure(fn))
             return CodeUpdate()
         end
-        if !haskey(Revise.file2modules, file)
+        if mod !== Main && !haskey(Revise.file2modules, file)
             parse_mod!(mod)
             if !haskey(Revise.file2modules, file)
                 # Should fail somehow?

@@ -27,3 +27,11 @@ isnice(::Type{Float64}) = false
 ################################################################################
 
 @generated generated_mouse(x::String) = :(string(x, " ", $(typeof(x))))
+
+################################################################################
+
+module Moo
+# Unsupported. FIXME? - September'17
+export cow
+cow() = 1
+end

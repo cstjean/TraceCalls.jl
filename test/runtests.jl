@@ -5,7 +5,7 @@ using Base.Test
 include("code_update.jl")
 
 @spawn for i in 1:10
-    sleep(5.0)
+    sleep(5 * 60)
     # Periodically print during testing so that Travis doesn't kill the process
     println("Dear Travis, please spare this slow process a few more minutes of runtime ($i).")
     flush(STDOUT)
@@ -85,8 +85,9 @@ tr = @trace f1(5) + f4(10)
 # generated functions
 include("incl.jl")
 tr_mouse = @trace "incl.jl" generated_mouse("hey")
+tr_mouse2 = @trace generated_mouse generated_mouse("hey")
 @test TraceCalls.value(tr_mouse) == "hey DataType"
-@test ctree_size(tr_mouse) == 2
+@test ctree_size(tr_mouse) == ctree_size(tr_mouse2) == 2
 
 ################################################################################
 # Testing with popular packages

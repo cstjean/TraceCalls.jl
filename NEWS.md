@@ -12,3 +12,4 @@ added for quickly surverying large traces. See `?measure` and the user manual.
 - Functions that are defined behind macros (such as `@inline`, or `@traitfn`) are now
 traceable.
 - Generated functions are now traceable.
+- Support tracing functions loaded by interactively including a file.

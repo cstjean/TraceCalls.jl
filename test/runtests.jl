@@ -4,6 +4,13 @@ using Base.Test
 
 include("code_update.jl")
 
+@spawn for i in 1:10
+    sleep(5.0)
+    # Periodically print during testing so that Travis doesn't kill the process
+    println("Dear Travis, please spare this slow process a few more minutes of runtime ($i).")
+    flush(STDOUT)
+end
+
 function ctree_size(tr::Trace)
     # tree_size, but first make sure that it wasn't an error
     @assert !isa(tr.value, Exception)

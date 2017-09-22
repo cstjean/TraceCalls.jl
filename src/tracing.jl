@@ -207,6 +207,7 @@ Base.show(io::IO, root::Root) = write(io, "Root$(root.fun)")
 (r::Root)() = r.fun()
 
 is_root(::Root) = true
+is_root(::Any) = false
 is_root(tr::Trace) = is_root(tr.func)
 
 """ `recording_trace(fun::Function)` sets up a fresh Trace recording state, then executes

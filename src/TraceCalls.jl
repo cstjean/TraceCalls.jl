@@ -18,7 +18,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
     bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby,
-    map_groups, trace_benchmark, @compilation_times, specializations
+    map_groups, trace_benchmark, @compilation_times, specializations, is_root
 
 const traceable_definitions = OrderedDict()  # We use an OrderedDict because in case we
                                              # accidentally store the same definition
@@ -320,6 +320,7 @@ Base.getindex(gr::Group, i) = gr.traces[i]
 Base.push!(gr::Group, tr::Trace) = push!(gr.traces, tr)
 Base.length(gr::Group) = length(gr.traces)
 Base.endof(gr::Group) = length(gr)
+is_root(grp::Group) = is_root(grp[1])
 (grp::Group)() = grp[1]()
 function show_group(io, mime, gr)
     N = length(gr)

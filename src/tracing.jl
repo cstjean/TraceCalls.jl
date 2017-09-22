@@ -219,7 +219,7 @@ function recording_trace(fun::Function)
     top_trace
 end    
 
-function trace(body::Function, to_trace=())
+function Base.trace(body::Function, to_trace=())
     with_tracing_definitions(to_trace) do
         # To debug, just use `with_tracing_definitions()` interactively
         recording_trace(body)

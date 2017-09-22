@@ -142,29 +142,32 @@ end
 
 ################################################################################
 
-"""    compilation_times(to_trace, trace::Trace; warmed_up_precompile=true)
+"""
+    compilation_times(to_trace, trace::Trace; warm_up=true,
+                      comp_fun=Base.precompile)
 
 Compute the time to compile each distinct call signature in `trace`, then aggregate
 it by method to return a report of how much total time is spent compiling each function
 called by `trace`.
 """
-function compilation_times(to_trace, trace::Trace; warmed_up_precompile=true)
+function compilation_times(to_trace, trace::Trace; warm_up=true,
+                           comp_fun=Base.precompile)
     # My understanding is that `precompile(f)` triggers compilation (or at least,
     # inference) on some of the functions that `f` calls. Thus, we iterate
     # `collect(trace)[end:-1:1]` so that the leaves are precompiled first.
     # It would potentially be more exact if I used:
     # https://github.com/JuliaLang/julia/blob/903644385b91ed8d95e5e3a5716c089dd1f1b08a/base/reflection.jl#L710-L714
     signatures = OrderedSet(signature(tr) for tr in collect(trace)[end:-1:1])
-    precompile(signature) = Base.precompile(signature[1], signature[2:end])
+    do_comp(signature) = comp_fun(signature[1], signature[2:end])
     # Recommended, since otherwise compilation times are reported much higher.
-    # My guess is that `precompile(f, type_tuple)` spends a lot of time generating
+    # My guess is that `do_comp(f, type_tuple)` spends a lot of time generating
     # code for `type_tuple`. Not 100% sure, though.
-    if warmed_up_precompile; foreach(precompile, signatures) end
+    if warm_up; foreach(do_comp, signatures) end
     @trace to_trace nothing   # reset Julia's method table for these functions
     dict = Dict{Any, Float64}()
     for signature in signatures
         method = which(signature[1], signature[2:end])
-        dict[method] = get(dict, method, 0) + @elapsed(precompile(signature))
+        dict[method] = get(dict, method, 0) + @elapsed(do_comp(signature))
     end
     return OrderedDict(sort(collect(dict), by=last, rev=true)...)
 end

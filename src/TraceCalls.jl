@@ -18,7 +18,8 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
     bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby,
-    map_groups, trace_benchmark, @compilation_times, specializations, is_root
+    map_groups, trace_benchmark, @compilation_times, specializations, is_root,
+    function_is
 
 const traceable_definitions = OrderedDict()  # We use an OrderedDict because in case we
                                              # accidentally store the same definition
@@ -133,6 +134,8 @@ Base.haskey(tr::Trace, key::Symbol) = key in arg_names(tr) || any(key==first(kwa
 Useful for filtering, eg. `filter(tr->any(obj isa Number && obj < 0 for obj in objects_in(tr)), trace)` will keep all calls that contain some negative number. """
 objects_in(tr::Trace) = [tr.args..., map(last, tr.kwargs)..., value(tr)]
             
+function_is(funs::Function...) = tr->tr.func in funs
+
 # I've disabled iteration because it doesn't align with our desired `Base.map`'s
 # behaviour, and it's kinda useless anyway.
 # Base.start(tr::Trace) = 1

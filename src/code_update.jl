@@ -289,8 +289,15 @@ end
 
 """ `get_function(mod::Module, fundef::Expr)::Function` returns the `Function` which this
 `fundef` is defining. This code works only when the Function already exists. """
-get_function_(mod::Module, fundef::Expr)::Union{Function, Type} =
-    eval(mod, splitdef(fundef)[:name])
+function get_function_(mod::Module, fundef::Expr)::Union{Function, Type, Void}
+    try
+        eval(mod, splitdef(fundef)[:name])
+    catch
+        # This can happen, for instance, in macro expansions that create functions
+        # with `gensym` names.
+        nothing
+    end
+end
 
 """ `get_function(mod, def)` returns the ::Function corresponding to `def` if there is
 one (and it's not a callable-object definition), otherwise returns `nothing` """

@@ -171,7 +171,7 @@ respectively. """
 const top = Top(0)
 +(top::Top, d::Int) = Top(top.delta + d)
 Base.getindex(tr::Trace, top::Top, args...) =
-    top.delta==0 ? tr : deepest_call(tr)[Top(top.delta-1), args...]
+    top.delta==0 ? tr[args...] : deepest_call(tr)[Top(top.delta-1), args...]
 
 
 apply_macro(mac::Symbol, tr::Trace, mod::Module=Main) =

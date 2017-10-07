@@ -105,6 +105,8 @@ Base.maximum(tr::Trace) = maximum(sub.value for sub in collect(tr))
 Base.round(tr::Trace, n::Int) = map(sub->round(sub.value, n), tr)
 Base.signif(tr::Trace, n::Int) = map(sub->signif(sub.value, n), tr)
 Base.normalize(tr::Trace, div=value(tr)) = map(apply_to_value_fn(x->x/div), tr)
+Base.sort(tr::Trace; rev=false, by=tr->value(tr)) =
+    Trace(tr, sort(tr.called; rev=rev, by=by))
 
 narrow_typeof{T}(t::Type{T}) = Type{T}
 narrow_typeof{T}(t::T) = T

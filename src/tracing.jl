@@ -229,9 +229,11 @@ function recording_trace(fun::Function)
     top_trace = Trace(Root(fun), (), (), called, res)
     current_called[] = Trace[] # don't hang on to that memory unnecessarily
     top_trace
-end    
+end
+recording_trace(tr::Trace) = recording_trace(()->tr())  # could be handled more gracefully
 
-function Base.trace(body::Function, to_trace=(); generated_functions::Bool=true)
+function Base.trace(body::Union{Function, Trace}, to_trace=();
+                    generated_functions::Bool=true)
     with_tracing_definitions(to_trace, generated_functions) do
         # To debug, just use `with_tracing_definitions()` interactively
         recording_trace(body)

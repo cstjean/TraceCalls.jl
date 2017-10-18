@@ -17,7 +17,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
-    bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby,
+    bottom, top, highlight, @show_val_only_type, objects_in, signature, group_by,
     map_groups, trace_benchmark, @compilation_times, specializations, is_root,
     function_is
 
@@ -311,7 +311,7 @@ number(x::Number) = x
 
 
 ################################################################################
-# groupby
+# group_by
 
 struct Group
     #key    # temporarily taken out until https://github.com/simonster/JLD2.jl/issues/37
@@ -374,7 +374,7 @@ is_inferred(grp::Group) = is_inferred(grp[1])
 
 redgreen(grp::Group) = Group([redgreen(grp[1]); grp[2:end]])
 
-function groupby(by::Function, trace::Trace)
+function group_by(by::Function, trace::Trace)
     di = OrderedDict{Any, Group}()
     for tr in collect(trace)
         key = by(tr)

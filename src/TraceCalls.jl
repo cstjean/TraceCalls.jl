@@ -17,7 +17,7 @@ export @traceable, @trace, Trace, prune, FontColor, Bold,
     is_inferred, map_is_inferred, redgreen, greenred,
     compare_past_trace, filter_func, apply_macro, @stacktrace, measure, tree_size,
     is_mutating, REPR, filter_cutting, NoTraceable, trace_log, filter_lineage,
-    bottom, top, highlight, @show_val_only_type, objects_in, signature, groupby,
+    bottom, top, highlight, @show_val_only_type, objects_in, signature, group_by,
     map_groups, trace_benchmark, @compilation_times, specializations, is_root,
     function_is
 
@@ -105,6 +105,8 @@ Base.maximum(tr::Trace) = maximum(sub.value for sub in collect(tr))
 Base.round(tr::Trace, n::Int) = map(sub->round(sub.value, n), tr)
 Base.signif(tr::Trace, n::Int) = map(sub->signif(sub.value, n), tr)
 Base.normalize(tr::Trace, div=value(tr)) = map(apply_to_value_fn(x->x/div), tr)
+Base.sort(tr::Trace; rev=false, by=tr->value(tr)) =
+    Trace(tr, sort(tr.called; rev=rev, by=by))
 
 narrow_typeof{T}(t::Type{T}) = Type{T}
 narrow_typeof{T}(t::T) = T
@@ -169,7 +171,7 @@ respectively. """
 const top = Top(0)
 +(top::Top, d::Int) = Top(top.delta + d)
 Base.getindex(tr::Trace, top::Top, args...) =
-    top.delta==0 ? tr : deepest_call(tr)[Top(top.delta-1), args...]
+    top.delta==0 ? tr[args...] : deepest_call(tr)[Top(top.delta-1), args...]
 
 
 apply_macro(mac::Symbol, tr::Trace, mod::Module=Main) =
@@ -309,7 +311,7 @@ number(x::Number) = x
 
 
 ################################################################################
-# groupby
+# group_by
 
 struct Group
     #key    # temporarily taken out until https://github.com/simonster/JLD2.jl/issues/37
@@ -372,7 +374,7 @@ is_inferred(grp::Group) = is_inferred(grp[1])
 
 redgreen(grp::Group) = Group([redgreen(grp[1]); grp[2:end]])
 
-function groupby(by::Function, trace::Trace)
+function group_by(by::Function, trace::Trace)
     di = OrderedDict{Any, Group}()
     for tr in collect(trace)
         key = by(tr)

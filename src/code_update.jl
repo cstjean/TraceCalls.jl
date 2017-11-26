@@ -155,16 +155,19 @@ is_generated_function_definition(expr::Expr) = expr.head == :stagedfunction
 is_generated_function_definition(::Any) = false
 
 is_call_definition(fundef_di::Dict) = @capture(fundef_di[:name], (a_::b_) | (::b_))
-is_call_definition(fundef) = is_call_definition(splitdef(fundef))
+is_call_definition(fundef) = is_call_definition(splitdef_memo(fundef))
 """ `is_fancy_constructor_definition(fundef)` is true for constructors that have both
 parameters and where-parameters (eg. `Vector{T}(x) where T = ...`) """
 is_fancy_constructor_definition(fundef_di::Dict) =
     !isempty(get(fundef_di, :params, ())) && !isempty(get(fundef_di, :whereparams, ()))
-is_fancy_constructor_definition(fundef)=is_fancy_constructor_definition(splitdef(fundef))
+is_fancy_constructor_definition(fundef) =
+    is_fancy_constructor_definition(splitdef_memo(fundef))
+
+const doc_mac = GlobalRef(Core, Symbol("@doc"))
 
 strip_docstring(x) = x
 function strip_docstring(x::Expr)
-    if x.head == :macrocall && x.args[1] == GlobalRef(Core, Symbol("@doc"))
+    if x.head == :macrocall && x.args[1] == doc_mac
         strip_docstring(x.args[3])
     else
         x
@@ -291,7 +294,7 @@ end
 `fundef` is defining. This code works only when the Function already exists. """
 function get_function_(mod::Module, fundef::Expr)::Union{Function, Type, Void}
     try
-        eval(mod, splitdef(fundef)[:name])
+        eval(mod, splitdef_memo(fundef)[:name])
     catch
         # This can happen, for instance, in macro expansions that create functions
         # with `gensym` names.

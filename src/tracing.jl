@@ -1,10 +1,14 @@
 const current_called =
     fill(Trace[]) # the current vector onto which to tack the next function calls
 
+# TODO: consider @memoize Dict{Tuple{Expr}, Any}
+# But I need to make sure that Revise doesn't modify the Expr
+splitdef_memo(def::Expr) = MacroTools.splitdef(def)
+
 is_traceable(def) =
     (is_generated_function_definition(def) ?
      is_traceable(generated2normal(def)) :
-     (is_function_definition(def) && (di=splitdef(def); !is_call_definition(di)) &&
+     (is_function_definition(def) && (di=splitdef_memo(def); !is_call_definition(di)) &&
       !is_fancy_constructor_definition(di)))
 
 """ `@traceable_loose(expr)` is like `traceable(expr)`, but doesn't error on non-function
@@ -86,7 +90,7 @@ function do_body_fun(di)
 end    
 
 function tracing_code_function(fdef::Expr)
-    di = splitdef(fdef)
+    di = splitdef_memo(fdef)
     do_body_fdef, do_body = do_body_fun(di)
     quote
         @inline $do_body_fdef
@@ -95,7 +99,7 @@ function tracing_code_function(fdef::Expr)
 end
 
 function tracing_code_generated(fdef::Expr)
-    di = splitdef(generated2normal(fdef))
+    di = splitdef_memo(generated2normal(fdef))
     do_body_fdef, do_body = do_body_fun(di)
     tfun_di = tracing_fun(di, do_body)
     tfun_di[:body] = Expr(:quote, tfun_di[:body])
@@ -105,7 +109,7 @@ function tracing_code_generated(fdef::Expr)
     end
 end
 
-"""  Takes a function definition, and returns a tracing version of it. """
+#"""  Takes a function definition, and returns a tracing version of it. """
 tracing_code(fdef::Expr) =
     (is_generated_function_definition(fdef) ?
      tracing_code_generated(fdef) :
@@ -125,7 +129,7 @@ macro traceable(fdef::Expr)
 
     file = (@__FILE__) == "" ? nothing : (@__FILE__)
     mod = current_module()
-    di = splitdef(fdef)
+    di = splitdef_memo(fdef)
     signature = (module_name(mod),         # loose approximation of the real signature
                  :($(di[:name])($([splitarg(arg)[2] for arg in di[:args]]...))))
     
@@ -136,14 +140,17 @@ macro traceable(fdef::Expr)
     return esc(fdef)
 end
 
+#@memoize Dict{Tuple{Expr}, Any} strip_docstring_memo(expr0) = strip_docstring(expr0)
 # There might be an issue with the memo if we decide to macroexpand the code, since the
 # macroexpansion depends on the environment. It's probably a negligible issue.
-@memoize Dict{Tuple{Expr}, Any} function traceable_update_handle_expr(expr0::Expr)
+@memoize Dict{Tuple{Expr, Bool}, Any} function traceable_update_handle_expr(expr0::Expr, trace_generated_functions)
     # maybe strip_docstring is not necessary anymore - September '17
-    expr = strip_docstring(expr0) 
-    is_traceable(expr) ? tracing_code(expr) : nothing
+    expr = strip_docstring(expr0)
+    (!is_traceable(expr) || (!trace_generated_functions &&
+                             is_generated_function_definition(expr))
+     ? nothing : tracing_code(expr))
 end
-traceable_update_handle_expr(::Any) = nothing
+traceable_update_handle_expr(::Any, ::Any) = nothing
 clear_handle_expr_memo!() =
     empty!(eval(TraceCalls, Symbol("##traceable_update_handle_expr_memoized_cache")))
 
@@ -154,13 +161,16 @@ function traceable_update end
 custom_when_missing(x) = warn(x)
 custom_when_missing(fail::UpdateInteractiveFailure) =
     warn("Cannot trace $(fail.fn); use `@traceable` to trace methods defined interactively. See ?@traceable and the user manual for details.")
-traceable_update(obj::Union{Module, String}) =
-    update_code_revertible(traceable_update_handle_expr, obj)
-traceable_update(f::Union{Function, Type}) =
-    update_code_revertible(traceable_update_handle_expr, f, when_missing=custom_when_missing)
+traceable_update(obj::Union{Module, String}, trace_generated_functions) =
+    update_code_revertible(x->traceable_update_handle_expr(x, trace_generated_functions),
+                           obj)
+traceable_update(f::Union{Function, Type}, trace_generated_functions) =
+    update_code_revertible(x->traceable_update_handle_expr(x, trace_generated_functions),
+                           f, when_missing=custom_when_missing)
 
-traceable_update(tup::Tuple) = merge(map(traceable_update, tup)...)
-traceable_update(tup::Tuple{}) = EmptyRevertibleCodeUpdate()
+traceable_update(tup::Tuple, trace_generated_functions) =
+    merge(map(x->traceable_update(x, trace_generated_functions), tup)...)
+traceable_update(tup::Tuple{}, ::Bool) = EmptyRevertibleCodeUpdate()
 
 """ The `RevertibleCodeUpdate` for the code from the `@traceable` macros. """
 traceable_macro_update() = merge(EmptyRevertibleCodeUpdate(),
@@ -170,20 +180,21 @@ traceable_macro_update() = merge(EmptyRevertibleCodeUpdate(),
 """ `@trace (foo, NoTraceable()) ...` will only trace `foo`; not the `@traceable`
 functions. """
 struct NoTraceable end
-traceable_update(::NoTraceable) = EmptyRevertibleCodeUpdate()
+traceable_update(::NoTraceable, ::Any) = EmptyRevertibleCodeUpdate()
 """ `traceable_update_code(x)` returns the code of the update. For debugging. """
-traceable_update_code(x) =
+traceable_update_code(x, trace_generated_functions) =
     map(to_expr, collect(reduce((s1,s2)->OrderedSet([collect(s1); collect(s2)]),
-                                collect(values(traceable_update(x).apply.md)))))
+                                collect(values(traceable_update(x, trace_generated_functions).apply.md)))))
 traceable_update_revert_code(x) =
-    map(to_expr, collect(reduce(merge, collect(values(traceable_update(x).revert.md)))))
+    map(to_expr, collect(reduce(merge, collect(values(traceable_update(x, trace_generated_functions).revert.md)))))
 
 
-function with_tracing_definitions(body::Function, obj)
+function with_tracing_definitions(body::Function, obj, trace_generated_functions)
     if obj isa Tuple && NoTraceable() in obj
-        upd = traceable_update(obj)
+        upd = traceable_update(obj, trace_generated_functions)
     else
-        upd = merge(traceable_update(obj), traceable_macro_update())
+        upd = merge(traceable_update(obj, trace_generated_functions),
+                    traceable_macro_update())
     end
     upd() do
         body()
@@ -218,10 +229,12 @@ function recording_trace(fun::Function)
     top_trace = Trace(Root(fun), (), (), called, res)
     current_called[] = Trace[] # don't hang on to that memory unnecessarily
     top_trace
-end    
+end
+recording_trace(tr::Trace) = recording_trace(()->tr())  # could be handled more gracefully
 
-function Base.trace(body::Function, to_trace=())
-    with_tracing_definitions(to_trace) do
+function Base.trace(body::Union{Function, Trace}, to_trace=();
+                    generated_functions::Bool=true)
+    with_tracing_definitions(to_trace, generated_functions) do
         # To debug, just use `with_tracing_definitions()` interactively
         recording_trace(body)
     end

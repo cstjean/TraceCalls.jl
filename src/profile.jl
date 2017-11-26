@@ -120,7 +120,7 @@ signature(grp::Group) = signature(grp[1])
     using BenchmarkTools: run
 
     trace_benchmark(trace::Trace; estimator=median) =
-        sort(run(GroupBenchmark(estimator, groupby(signature, map(tr->:not_run, trace)))),
+        sort(run(GroupBenchmark(estimator, group_by(signature, map(tr->:not_run, trace)))),
              by=time, rev=true)
     trace_benchmark(code::Function, to_trace; kwargs...) =
         trace_benchmark(trace(code, to_trace); kwargs...)

@@ -5,8 +5,6 @@
 # end
 import Revise
 using Revise: ModDict, parse_source, RelocatableExpr
-import ClobberingReload
-using ClobberingReload: scrub_redefinition_warnings
 
 # This was exported back when it was stand-alone functionality, but it's an implementation
 # detail for TraceCalls
@@ -282,9 +280,9 @@ function parse_mod!(mod::Module)
         if !haskey(Revise.file2modules, Revise.sysimg_path)
             parse_source(Revise.sysimg_path, Main, dirname(Revise.sysimg_path))
         end
-    elseif !haskey(Revise.file2modules, ClobberingReload.module_definition_file(mod))
+    elseif !haskey(Revise.file2modules, module_definition_file(mod))
         Revise.parse_pkg_files(Symbol(mod)) # it's a side-effect of this function...
-        @assert haskey(Revise.file2modules, ClobberingReload.module_definition_file(mod))
+        @assert haskey(Revise.file2modules, module_definition_file(mod))
     end
     nothing
 end

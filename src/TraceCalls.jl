@@ -3,8 +3,7 @@ module TraceCalls
 
 using Requires
 using MacroTools
-#using MacroTools: combinedef, combinearg, longdef1
-using ClobberingReload: combinedef, combinearg, longdef1, splitdef, splitarg
+using MacroTools: combinedef, combinearg, longdef1
 using Base.Test: @inferred
 using DataStructures: OrderedDict, OrderedSet
 using Memoize
@@ -388,6 +387,7 @@ end
 ################################################################################
 
 
+include("scrub_stderr.jl")
 include("code_update.jl")
 include("tracing.jl")
 include("show.jl")

@@ -2,7 +2,11 @@ using TraceCalls
 using TraceCalls: tree_size
 using Base.Test
 
-include("code_update.jl")
+@testset "TraceCalls" begin
+
+@testset "Code update" begin
+    include("code_update.jl")
+end
 
 @spawn for i in 1:10
     sleep(5 * 60)
@@ -66,28 +70,34 @@ push!(u, 40)
 
 # NoTraceable
 using TraceCalls
-@traceable foo(x) = x+2
-
-@test ctree_size(@trace foo(10)) == 2
-@test ctree_size(@trace (NoTraceable(),) foo(10)) == 1
+@testset "NoTraceable" begin
+    @traceable foo(x) = x+2
+    
+    @test ctree_size(@trace foo(10)) == 2
+    @test ctree_size(@trace (NoTraceable(),) foo(10)) == 1
+end
 
 
 # filtering
-@traceable f1(x) = f2(x) + f3(x)
-@traceable f2(x) = x-10
-@traceable f3(x) = f4(x)+20
-@traceable f4(x) = 2*x
-tr = @trace f1(5) + f4(10)
-@test ctree_size(filter_lineage(sub->sub.func==f3, tr)) == 4
-@test ctree_size(filter(sub->sub.func==f3, tr)) == 2
-@test ctree_size(filter_cutting(sub->sub.func!=f3, tr)) == 4
+@testset "Filtering" begin
+    @traceable f1(x) = f2(x) + f3(x)
+    @traceable f2(x) = x-10
+    @traceable f3(x) = f4(x)+20
+    @traceable f4(x) = 2*x
+    tr = @trace f1(5) + f4(10)
+    @test ctree_size(filter_lineage(sub->sub.func==f3, tr)) == 4
+    @test ctree_size(filter(sub->sub.func==f3, tr)) == 2
+    @test ctree_size(filter_cutting(sub->sub.func!=f3, tr)) == 4
+end
 
 # generated functions
-include("incl.jl")
-tr_mouse = @trace "incl.jl" generated_mouse("hey")
-tr_mouse2 = @trace generated_mouse generated_mouse("hey")
-@test TraceCalls.value(tr_mouse) == "hey DataType"
-@test ctree_size(tr_mouse) == ctree_size(tr_mouse2) == 2
+@testset "Generated functions" begin
+    include("incl.jl")
+    tr_mouse = @trace "incl.jl" generated_mouse("hey")
+    tr_mouse2 = @trace generated_mouse generated_mouse("hey")
+    @test TraceCalls.value(tr_mouse) == "hey DataType"
+    @test ctree_size(tr_mouse) == ctree_size(tr_mouse2) == 2
+end
 
 # JuliaLang#23809
 tr_missing = @trace "incl.jl" generated_missing("hey")
@@ -96,9 +106,8 @@ tr_missing = @trace "incl.jl" generated_missing("hey")
 
 ################################################################################
 # Testing with popular packages
-import ClobberingReload
 root_of(mod::Module) =
-    joinpath(dirname(ClobberingReload.module_definition_file(string(mod))), "..")
+    joinpath(dirname(TraceCalls.module_definition_file(string(mod))), "..")
 
 
 using JuMP
@@ -156,5 +165,9 @@ graph = Graph(A)
 
 ################################################################################
 
-using NBInclude
-nbinclude("../README.ipynb")
+@tesetset "README" begin
+    using NBInclude
+    nbinclude("../README.ipynb")
+end
+
+end

@@ -1,25 +1,24 @@
-import ClobberingReload
-
+import MacroTools
 using TraceCalls: apply_code!, revert_code!, update_code_revertible, RevertibleCodeUpdate,
     CodeUpdate, source
 
-a = ClobberingReload.parse_file("docstring.jl")[1] # TODO: see comment in that file
-@test TraceCalls.strip_docstring(a).head == :function
+# a = parse_file("docstring.jl")[1] # TODO: see comment in that file
+# @test TraceCalls.strip_docstring(a).head == :function
 
 ################################################################################
 # RevertibleCodeUpdate
 
 # That's a hacky way of reusing the test file in ClobberingReload
-push!(LOAD_PATH, joinpath(@__DIR__, "..", "..", "ClobberingReload", "test"))
+push!(LOAD_PATH, joinpath(@__DIR__, "ClobberingReloadTests"))
 using AA
 
 include("incl.jl")
 
 counter = fill(0)
 function add_counter(fdef)
-    di = ClobberingReload.splitdef(fdef)
+    di = MacroTools.splitdef(fdef)
     di[:body] = quote $counter .+= 1; $(di[:body]) end
-    TraceCalls.combinedef(di)
+    MacroTools.combinedef(di)
 end
 upd_high = update_code_revertible(AA.high) do code
     add_counter(code)
@@ -70,6 +69,5 @@ end
     
 ################################################################################
 
-@test length(source(ClobberingReload.creload)) == 2
 source(Base.which) # check that it works with Base
 source(Base.vcat)  # nested where (as of July '17)

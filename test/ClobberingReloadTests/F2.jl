@@ -1,0 +1,3 @@
+export something
+
+something = "green"

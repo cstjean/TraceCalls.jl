@@ -165,7 +165,7 @@ graph = Graph(A)
 
 ################################################################################
 
-@tesetset "README" begin
+@testset "README" begin
     using NBInclude
     nbinclude("../README.ipynb")
 end

@@ -83,7 +83,7 @@ end
 
 @testset "README" begin
     using NBInclude
-    nbinclude("../README.ipynb")
+    @nbinclude("../README.ipynb")
 end
 
 end

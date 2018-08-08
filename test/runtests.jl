@@ -81,8 +81,8 @@ end
 
 ################################################################################
 
+using NBInclude
 @testset "README" begin
-    using NBInclude
     @nbinclude("../README.ipynb")
 end
 

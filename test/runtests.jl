@@ -1,5 +1,6 @@
 using TraceCalls
 using TraceCalls: tree_size
+using NBInclude
 using Base.Test
 
 @testset "TraceCalls" begin
@@ -81,7 +82,6 @@ end
 
 ################################################################################
 
-using NBInclude
 @testset "README" begin
     @nbinclude("../README.ipynb")
 end

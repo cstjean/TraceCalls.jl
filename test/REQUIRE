@@ -1,7 +1,7 @@
 NBInclude
 
 JuMP
-Gadfly
+# Gadfly
 DataStructures
 PyCall
 Optim

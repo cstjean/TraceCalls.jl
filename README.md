@@ -1,3 +1,7 @@
+# THIS PACKAGE IS NOW UNSUPPORTED
+
+It has not worked correctly since Julia 0.6, and even getting it to work again on Julia 0.6 would be a very painful endeavour.
+
 # TraceCalls
 
 [![Build Status](https://travis-ci.org/cstjean/TraceCalls.jl.svg?branch=master)](https://travis-ci.org/cstjean/TraceCalls.jl)
